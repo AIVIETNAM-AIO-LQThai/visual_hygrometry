@@ -1,0 +1,31 @@
+# Feature roles each setting may consume. Roles come from x-role in schemas/sample.schema.json.
+# id, time, label, label_qc, provenance, calib and forbidden are never features in any setting.
+# Lineage overrides roles: any field derived (transitively) from a label field is refused everywhere.
+
+settings:
+  co:        # camera-only deployment: frames + relative timing + static calibration
+    inputs: [visual, acq]
+    targets: [d_ref_k, rh_ref_pct]
+  ta:        # temperature-assisted deployment: CO + live thermometer (a different product from CO)
+    inputs: [visual, acq, temp_cond, temp_hist]
+    targets: [d_ref_k, rh_ref_pct]
+  ctx:       # contextual ceiling: explicit clock/season and non-humidity meteorology at inference
+    inputs: [visual, acq, clock, temp_cond, temp_hist, met]
+    targets: [d_ref_k, rh_ref_pct]
+  teacher:   # privileged teacher for distillation; soft targets must be out-of-fold
+    inputs: [visual, acq, clock, temp_cond, temp_hist, met, aerosol_dry, mediator]
+    targets: [d_ref_k, rh_ref_pct]
+    training_only: true
+
+# Scientific information contrasts q(D|V,C) vs q(D|C). Both models receive identical context columns;
+# the joint model adds visual columns only.
+sci:
+  e1: {context: [clock], visual: [visual, acq]}
+  e2: {context: [clock, temp_cond, temp_hist], visual: [visual, acq]}
+  e3: {context: [clock, temp_cond, temp_hist, aerosol_dry], visual: [visual, acq]}
+sci_targets: [d_ref_k, rh_ref_pct]
+
+# Single-feature correlation-ratio audit (eta^2 of the target across quantile bins of the feature).
+# A legitimate single feature this close to a deterministic function of the label is treated as leakage until
+# explained; overriding requires an explicit argument and a decision-log entry.
+label_equivalence_eta2: 0.95

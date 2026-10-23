@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# raw imagery, sensor dumps and API caches live outside version control
+data/raw/
+data/cache/
+data/interim/
+*.zip
+*.tif
+*.nef
+*.dng

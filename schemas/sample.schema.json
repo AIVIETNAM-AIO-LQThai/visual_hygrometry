@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "visual_hygrometry/sample.schema.json",
+  "title": "Aligned observation (one row per camera sample time)",
+  "description": "Gate between raw data and every model. x-role decides which settings may consume a field (configs/inference_settings.yaml); x-derived-from records lineage so that descendants of label fields are refused regardless of their declared role.",
+  "type": "object",
+  "required": ["sample_id", "site_id", "camera_id", "time_utc", "ref_sensor_id"],
+  "properties": {
+    "sample_id": {"type": "string", "x-role": "id"},
+    "site_id": {"type": "string", "x-role": "id"},
+    "camera_id": {"type": "string", "x-role": "id"},
+    "time_utc": {"type": "string", "format": "date-time", "x-role": "time", "description": "Nominal sample time, UTC. Keyframe capture time for single-frame samples."},
+    "utc_offset_min": {"type": "integer", "x-role": "time", "description": "Local standard-time offset of the site (no DST), minutes."},
+
+    "frame_ids": {"type": "array", "items": {"type": "string"}, "x-role": "visual", "description": "Frames (frame.schema.json) entering the sample, all captured within [time_utc - window_s, time_utc]."},
+    "window_s": {"type": "number", "minimum": 0, "x-role": "acq", "x-unit": "s", "description": "Visual look-back window."},
+
+    "hour_local": {"type": "number", "minimum": 0, "maximum": 24, "x-role": "clock", "x-unit": "h", "x-derived-from": ["time_utc", "utc_offset_min"]},
+    "doy": {"type": "number", "minimum": 1, "maximum": 367, "x-role": "clock", "x-derived-from": ["time_utc", "utc_offset_min"]},
+    "solar_elev_deg": {"type": "number", "minimum": -90, "maximum": 90, "x-role": "clock", "x-unit": "deg", "x-derived-from": ["time_utc"]},
+
+    "temp_cond_c": {"type": "number", "minimum": -60, "maximum": 60, "x-role": "temp_cond", "x-unit": "degC", "description": "Air temperature from the conditioning sensor (cond_sensor_id), averaged over a window ending at time_utc."},
+    "cond_sensor_id": {"type": "string", "x-role": "provenance"},
+
+    "wind_ms": {"type": "number", "minimum": 0, "x-role": "met", "x-unit": "m s-1"},
+    "rain_mm": {"type": "number", "minimum": 0, "x-role": "met", "x-unit": "mm", "description": "Accumulation over the sample window."},
+    "sw_down_wm2": {"type": "number", "minimum": -10, "x-role": "met", "x-unit": "W m-2"},
+    "pressure_hpa": {"type": "number", "minimum": 500, "maximum": 1100, "x-role": "met", "x-unit": "hPa"},
+
+    "pm_dry_ugm3": {"type": "number", "minimum": 0, "x-role": "aerosol_dry", "x-unit": "ug m-3", "description": "PM measured after a verified dryer (inlet RH logged). Diagnostic E3 anchor only."},
+    "visibility_m": {"type": "number", "minimum": 0, "x-role": "mediator", "x-unit": "m"},
+    "leaf_wet": {"type": "number", "minimum": 0, "x-role": "mediator"},
+    "road_state": {"type": "string", "x-role": "mediator", "description": "Road-surface condition class (dry/moist/wet/...) from a road-weather station."},
+
+    "rh_ref_pct": {"type": "number", "minimum": 0, "maximum": 105, "x-role": "label", "x-unit": "%", "description": "Reference RH over water from ref_sensor_id, averaged over label_window_s centred on time_utc."},
+    "temp_ref_c": {"type": "number", "minimum": -60, "maximum": 60, "x-role": "label", "x-unit": "degC", "description": "Air temperature of the reference (label) unit; never a feature."},
+    "td_ref_c": {"type": "number", "x-role": "label", "x-unit": "degC", "x-derived-from": ["rh_ref_pct", "temp_ref_c"]},
+    "d_ref_k": {"type": "number", "x-role": "label", "x-unit": "K", "x-derived-from": ["temp_ref_c", "td_ref_c"]},
+    "d_censored": {"type": "boolean", "x-role": "label_qc", "x-derived-from": ["rh_ref_pct"], "description": "True: d_ref_k is an upper bound (rh_ref_pct >= instrument censor limit)."},
+    "label_window_s": {"type": "number", "minimum": 0, "x-role": "label_qc", "x-unit": "s"},
+    "ref_sensor_id": {"type": "string", "x-role": "provenance"},
+
+    "pm_raw_ugm3": {"type": "number", "x-role": "forbidden", "x-reason": "undried optical PM grows hygroscopically with RH: a covert hygrometer"},
+    "wx_code": {"type": "string", "x-role": "forbidden", "x-reason": "present-weather codes encode fog/mist/humidity from station sensors"},
+    "rh_nwp_pct": {"type": "number", "x-role": "forbidden", "x-reason": "model/reanalysis humidity assimilates the target quantity"}
+  },
+  "patternProperties": {
+    "^vis_": {"type": "number", "x-role": "visual", "x-derived-from": ["frame_ids"], "description": "Image-derived features computed from frame_ids only."},
+    "^hour_[sc][0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["hour_local"], "description": "Fixed Fourier basis of local hour (data-independent, no fitting)."},
+    "^doy_[sc][0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["doy"]},
+    "^temp_hist_": {"type": "number", "x-role": "temp_hist", "x-unit": "degC", "x-derived-from": ["temp_cond_c"], "description": "Causal statistics of temp_cond_c over windows ending at time_utc."}
+  }
+}

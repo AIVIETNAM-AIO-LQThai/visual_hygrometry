@@ -1,0 +1,19 @@
+[project]
+name = "visual-hygrometry"
+version = "0.0.1"
+description = "Identifiability of near-surface moisture from passive RGB observations: data contract, leakage policy and conditional-information estimators."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "scipy>=1.11", "pandas>=2.1", "scikit-learn>=1.4", "matplotlib>=3.8", "pyyaml>=6", "requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "jsonschema>=4.20", "nbformat>=5.9", "nbclient>=0.10", "ipykernel>=6.29"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/visual_hygrometry"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

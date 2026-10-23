@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "visual_hygrometry/frame.schema.json",
+  "title": "Image frame manifest (one row per captured frame)",
+  "description": "Pixels stay outside Git; the manifest carries path, hash and acquisition state. Exposure/gain/white balance are calibration inputs for radiometric normalisation and are never model features (an auto-exposure ladder encodes solar time).",
+  "type": "object",
+  "required": ["frame_id", "camera_id", "site_id", "time_utc", "path", "sha256", "source"],
+  "properties": {
+    "frame_id": {"type": "string", "x-role": "id"},
+    "camera_id": {"type": "string", "x-role": "id"},
+    "site_id": {"type": "string", "x-role": "id"},
+    "time_utc": {"type": "string", "format": "date-time", "x-role": "time", "description": "Capture time in UTC after clock-offset correction."},
+    "time_source": {"type": "string", "enum": ["exif", "filename", "api", "ntp_logger"], "x-role": "provenance"},
+    "clock_offset_s": {"type": "number", "x-role": "provenance", "description": "Applied correction camera clock -> UTC; null if unverified."},
+    "path": {"type": "string", "x-role": "provenance"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "x-role": "provenance"},
+    "source": {"type": "string", "x-role": "provenance", "description": "Provider/product and licence identifier."},
+    "raw": {"type": "boolean", "x-role": "calib"},
+    "width": {"type": "integer", "minimum": 1, "x-role": "calib"},
+    "height": {"type": "integer", "minimum": 1, "x-role": "calib"},
+    "exposure_s": {"type": "number", "minimum": 0, "x-role": "calib"},
+    "iso": {"type": "number", "minimum": 0, "x-role": "calib"},
+    "f_number": {"type": "number", "minimum": 0, "x-role": "calib"},
+    "wb_mode": {"type": "string", "x-role": "calib"},
+    "overlay_masked": {"type": "boolean", "x-role": "provenance", "description": "Burned-in text (timestamps, station readings) masked before feature extraction."},
+    "qc": {"type": "string", "x-role": "provenance", "description": "Frame QC flags, e.g. 'lens_droplets', 'ir_mode', 'camera_moved'."}
+  }
+}

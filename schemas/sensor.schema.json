@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "visual_hygrometry/sensor.schema.json",
+  "title": "Sensor reading (long format, one row per sensor x quantity x averaging interval)",
+  "description": "Raw provider values with their own averaging interval and QC; alignment to camera time happens only when building sample rows.",
+  "type": "object",
+  "required": ["sensor_id", "time_utc", "quantity", "value", "unit", "avg_s", "source"],
+  "properties": {
+    "sensor_id": {"type": "string", "description": "Physical unit identifier; two quantities from one probe share it."},
+    "time_utc": {"type": "string", "format": "date-time", "description": "End of averaging interval, UTC."},
+    "avg_s": {"type": "number", "minimum": 0, "description": "Averaging interval length; the reading covers (time_utc - avg_s, time_utc]."},
+    "quantity": {"type": "string", "enum": ["air_temp", "rh", "dewpoint", "wind_speed", "precip", "sw_down", "pressure", "pm_dry", "pm_raw", "visibility", "leaf_wetness", "road_state", "present_weather"]},
+    "value": {"type": ["number", "string"]},
+    "unit": {"type": "string"},
+    "height_m": {"type": "number", "description": "Sensor height above ground."},
+    "shield": {"type": "string", "enum": ["aspirated", "naturally_ventilated", "unshielded", "unknown"]},
+    "qc_flag": {"type": "string"},
+    "source": {"type": "string", "description": "Provider/product/release identifier."}
+  }
+}
