@@ -87,3 +87,14 @@ def test_sci_contrast_is_matched(samples):
 def test_legitimate_features_pass_audit(samples):
     _, _, info = select(samples, 'ctx')
     assert max(info['eta2'].values()) < 0.95
+
+
+def test_eta2_ignores_row_order_and_keeps_ties_together():
+    rng = np.random.default_rng(3)
+    x, y = rng.integers(0, 3, 2000).astype(float), rng.normal(size=2000)
+    y += x  # a 3-level feature explains part of y
+    perm = rng.permutation(2000)
+    assert policy.eta2(x, y) == pytest.approx(policy.eta2(x[perm], y[perm]), abs=1e-12)
+    groups = [y[x == v] for v in range(3)]
+    exact = sum(len(g) * (g.mean() - y.mean()) ** 2 for g in groups) / (len(y) * y.var())
+    assert policy.eta2(x, y) == pytest.approx(exact, abs=1e-12)  # one bin per distinct value

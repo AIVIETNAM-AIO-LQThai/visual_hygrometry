@@ -71,3 +71,48 @@ def test_contrast_unbiased_over_replicates(gamma):
         sp = splits.kfold(splits.assign_folds(df.day.to_numpy(), 5))
         est.append(scoring.contrast(np.c_[H, df.temp], np.c_[H, df.temp, df.vis], df.d.to_numpy(), sp, df.day.to_numpy()).mean)
     assert abs(np.mean(est) - truth) < 0.015
+
+
+def _censored_data(n_days=150, per_day=20, seed=4):
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n_days * per_day, 2))
+    d = 1.5 + X @ [1.0, -0.5] + rng.normal(0, 1.2, len(X))
+    cens = d < 1.0
+    return X, np.where(cens, 1.0, d), cens, np.repeat(np.arange(n_days), per_day)
+
+
+def test_tobit_recovers_parameters_where_naive_fit_is_biased():
+    X, y, cens, _ = _censored_data()
+    assert 0.2 < cens.mean() < 0.5
+    th = scoring._tobit(X, y, cens, alpha=1e-6)
+    assert np.allclose(th[:3], [1.5, 1.0, -0.5], atol=0.08) and np.exp(th[-1]) == pytest.approx(1.2, rel=.05)
+    naive = np.linalg.lstsq(np.c_[np.ones(len(X)), X], y, rcond=None)[0]
+    assert abs(naive[1] - 1.0) > 0.1  # treating bounds as exact values attenuates the slope
+
+
+def test_censored_crossfit_scores_bounds_with_cdf():
+    X, y, cens, g = _censored_data()
+    sp = splits.kfold(splits.assign_folds(g, 5))
+    mu, sd, ls = scoring.crossfit(X, y, sp, g, censored=cens)
+    assert np.nanmean(sd) == pytest.approx(1.2, rel=.08)
+    assert np.allclose(ls[cens], stats.norm.logcdf(y[cens], mu[cens], sd[cens]))
+    with pytest.raises(NotImplementedError):
+        scoring.crossfit(X, y, sp, g, censored=cens, var='hetero')
+
+
+def test_binned_family_handles_censoring_by_lowest_bin():
+    X, y, cens, g = _censored_data(n_days=60)
+    sp = splits.kfold(splits.assign_folds(g, 3))
+    P, b, ls = scoring.crossfit_binned(X, y, sp, g, edges=[1.0, 2.0, 3.0, 4.0], Cs=(1.0,), inner=3, censored=cens)
+    assert (b[cens] == 0).all() and np.allclose(P.sum(1), 1) and np.allclose(ls, np.log(P[np.arange(len(b)), b]))
+    with pytest.raises(ValueError, match='lowest bin'):
+        scoring.crossfit_binned(X, y, sp, g, edges=[0.5, 2.0], censored=cens)
+
+
+def test_oracle_conditional_matches_cmi():
+    spec = _world(0.4)
+    df = synthetic.simulate(spec, n_days=400, seed=5)
+    mc, sc = synthetic.conditional(spec, df, 'd', ['temp'])
+    mv, sv = synthetic.conditional(spec, df, 'd', ['temp', 'vis'])
+    d = scoring.gauss_ls(df.d, mv, sv) - scoring.gauss_ls(df.d, mc, sc)
+    assert d.mean() == pytest.approx(synthetic.cmi(spec, 'd', 'vis', 'temp'), abs=0.01)

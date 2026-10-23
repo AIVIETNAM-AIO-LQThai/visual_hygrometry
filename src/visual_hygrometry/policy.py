@@ -65,13 +65,16 @@ CONTRACT, SETTINGS = Contract(load_schema('sample')), load_settings()
 
 
 def eta2(x, y, bins=50):
-    """Correlation ratio: share of var(y) explained by quantile bins of x (1 = y is a function of x)."""
+    """Correlation ratio: share of var(y) explained by quantile bins of x (1 = y is a function of x).
+
+    Bins come from average ranks, so tied x values always share a bin and the result does not depend on row order.
+    """
     ok = np.isfinite(x) & np.isfinite(y)
     x, y = x[ok], y[ok]
     nb = max(2, min(bins, len(x) // 20))
-    b = np.minimum((pd.Series(x).rank(method='first').to_numpy() - 1) * nb // len(x), nb - 1).astype(int)
-    m = np.bincount(b, weights=y) / np.bincount(b)
-    return np.var(m[b]) / np.var(y)
+    b = np.minimum(np.floor((pd.Series(x).rank(method='average').to_numpy() - 0.5) * nb / len(x)), nb - 1).astype(int)
+    m = np.bincount(b, weights=y)[b] / np.bincount(b)[b]
+    return np.var(m) / np.var(y)
 
 
 def _check(df, cols, roles, target, targets, allow_shared_sensor, audit, where):

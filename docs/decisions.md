@@ -23,6 +23,20 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-017 | First public source: NEON terrestrial towers (HMP155 label, aspirated PRT conditioning, PhenoCam RGB, same tower top). | provisional | nb02: 47 sites, median 116 months with all three; data access blocked (HTTP 403) pending an API token |
 | D-018 | Practical threshold for a "meaningful" E2. | open | 0.05 nats is a placeholder; nb01 §10 gives synthetic power (MDE₈₀) per number of days; fix after real dependence structure is measured |
 
+## After the independent review (see [m0_decision_addendum.md](m0_decision_addendum.md))
+
+| id | decision | status | evidence / revisit when |
+|---|---|---|---|
+| D-015 | Percentile day-block bootstrap for the contrast. | rejected | nb03: over-conservative under null (Type I 0–1 %), under-covers effects at 60 days |
+| D-019 | Q0 (any information): refitting day-block permutation test with re-projected residuals. Q1 (effect size): frozen hold-out, day-cluster t, reported as information captured by the frozen models. Q2 (meaningful): frozen lower bound vs a pre-fixed δ. | provisional | nb03 dev + validation A1–A4 pass; open: permutation Type I 0.09 in one strongly dependent dev world |
+| D-020 | Confirmatory claims need an independent aspirated conditioning thermometer; label-unit temperature only as a sensitivity analysis. NEON = feasibility only until shielding, geometry, timestamps and radiation bias are verified. | adopted | review item 4; nb01 §9; nb03 V-S |
+| D-021 | Exp 2a-A: ≤ 10 predefined physical/scene features; a null result does not end the study. | adopted | addendum |
+| D-022 | Exp 2a-B: frozen encoder reduced to k ∈ {4, 8, 16, 32} by PCA fitted on non-evaluation days, grouped tuning. | adopted | addendum; nb01 §6 |
+| D-023 | Family panel: GO requires `ls-kde+T` (1 % defensive KDE, transform rule blind to V); `gauss+T` as efficiency reference; binned (labelled as binned-D information) where censoring matters. | provisional | nb03 §4, validation A6 |
+| D-024 | Censored labels: penalised Tobit fit (or binned family); dropping censored rows is not acceptable for confirmatory work. | adopted | nb03 §5, A7; unit tests |
+| D-025 | Context capacity must exceed what the image can encode about context; polynomial adequacy diagnostic insufficient. | **open, blocking** | nb03 validation A5 failed (39 % flag rate, 100 % false rejection in V-N4) |
+| D-026 | η² leakage audit uses average ranks (row-order invariant, ties share a bin). | adopted | test_eta2_ignores_row_order_and_keeps_ties_together |
+
 ## Open questions carried to M1
 
 - CO-RH construction (direct RH head vs joint `p(T, D | V)`), and the clock-only reference for CO.

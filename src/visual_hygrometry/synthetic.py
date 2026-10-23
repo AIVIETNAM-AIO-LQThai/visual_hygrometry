@@ -43,13 +43,18 @@ def simulate(spec, n_days, per_day=48, hours=(6, 18), seed=0):
     return pd.DataFrame(cols)
 
 
-def covariance(spec):
+def _system(spec):
     names = list(spec)
     B = np.zeros((len(names),) * 2)
     for i, n in enumerate(spec.values()):
         for p, c in n.parents.items(): B[i, names.index(p)] = c
     A = np.linalg.inv(np.eye(len(names)) - B)
-    return pd.DataFrame(A @ np.diag([n.sd ** 2 for n in spec.values()]) @ A.T, names, names)
+    return names, A, A @ np.diag([n.sd ** 2 for n in spec.values()]) @ A.T
+
+
+def covariance(spec):
+    names, _, S = _system(spec)
+    return pd.DataFrame(S, names, names)
 
 
 def cmi(spec, y, x, given=()):
@@ -58,3 +63,13 @@ def cmi(spec, y, x, given=()):
     y, x, g = ([v] if isinstance(v, str) else list(v) for v in (y, x, given))
     ld = lambda c: np.linalg.slogdet(S.loc[c, c].to_numpy())[1] if c else 0.0
     return 0.5 * (ld(y + g) + ld(x + g) - ld(g) - ld(x + y + g))
+
+
+def conditional(spec, df, y, given=()):
+    """Exact Gaussian p(y | given, hour) for every row of a simulated frame, as (mu, sd) arrays (oracle predictive)."""
+    names, A, S = _system(spec)
+    E = np.column_stack([n.mean(df.hour.to_numpy()) if n.mean else np.zeros(len(df)) for n in spec.values()]) @ A.T
+    iy, ig = names.index(y), [names.index(g) for g in given]
+    if not ig: return E[:, iy], np.full(len(df), np.sqrt(S[iy, iy]))
+    K = np.linalg.solve(S[np.ix_(ig, ig)], S[ig, iy])
+    return E[:, iy] + (df[list(given)].to_numpy() - E[:, ig]) @ K, np.full(len(df), np.sqrt(S[iy, iy] - S[iy, ig] @ K))

@@ -47,6 +47,8 @@ Layers 1–5 and 7 are exact. Layer 6 is a heuristic net: it catches near-copies
 
 Where possible the label (`ref_sensor_id`) and the conditioning thermometer (`cond_sensor_id`) are different, independently shielded and aspirated units, and the analysis is repeated with roles swapped. Agreement between two units does not reveal their common-mode radiation error. Notebook 01 §9 shows why this matters: a radiation error that the image can predict (sunshine) produces a positive E2 in a world with no visual moisture information. Public single-station data are usable only with `allow_shared_sensor=True` and this limitation stated with every result.
 
+For confirmatory physical claims the conditioning temperature must come from an independent aspirated unit (decision D-020). Conditioning on the label unit's own temperature is run as a sensitivity analysis: it gives exact D ↔ RH invariance but couples the errors. NEON tower data (HMP155 label, triple-aspirated PRT conditioning) are approved for feasibility work only, until probe shielding, image–sensor geometry, timestamp pairing and radiation bias are verified.
+
 ## Time
 
 - `time_utc` is the keyframe time. Label quantities are averaged over `label_window_s` centred on it; all feature windows are causal, `(t − w, t]` (`data.causal_mean`).

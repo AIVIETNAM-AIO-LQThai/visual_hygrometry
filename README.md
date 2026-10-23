@@ -13,8 +13,9 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | data contracts | [schemas/](schemas/) (`sample`, `frame`, `sensor`) | drafted; site/calibration schemas pending |
 | thermodynamics | `thermo.py`, [notebooks/00](notebooks/00_thermodynamics_and_synthetic_data.ipynb) | validated against steam tables |
 | blocked splits, purging | `splits.py` | tested |
-| information estimator | `scoring.py`, `synthetic.py`, [notebooks/01](notebooks/01_information_estimator.ipynb) | validated on synthetic worlds; open issues in [docs/decisions.md](docs/decisions.md) |
-| public data | [notebooks/02](notebooks/02_public_data_audit.ipynb) | NEON stage 1 (metadata); data access blocked pending API token |
+| information estimator | `scoring.py`, `synthetic.py`, [notebooks/01](notebooks/01_information_estimator.ipynb) | first validation (kept as record, including failures) |
+| revised inference, families, censoring | `inference.py`, `scoring.py`, [notebooks/03](notebooks/03_inference_and_density_revision.ipynb), [addendum](docs/m0_decision_addendum.md) | 7/8 held-out criteria pass; context-capacity check (A5) fails, blocks confirmatory use |
+| public data | [notebooks/02](notebooks/02_public_data_audit.ipynb) | NEON stage 1 (metadata); token now available via `.env` (never committed); feasibility use only |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
 Nothing here is evidence that RGB imagery carries moisture information; all estimator results so far are on synthetic data with known truth.
@@ -35,10 +36,10 @@ On Linux/macOS use `.venv/bin/python`. Notebooks use the environment's `python3`
 ```
 
 ```bash
-cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb
+cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 10 minutes (repeated-sampling study); notebook 02 queries the NEON and PhenoCam APIs live.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5 minutes on 16 parallel workers; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -47,8 +48,9 @@ configs/   inference settings (roles each setting may consume)
 docs/      scope, policy, mathematics, decision log
 schemas/   JSON-schema data contracts with x-role / x-derived-from annotations
 src/visual_hygrometry/
-           thermo.py  data.py  policy.py  splits.py  scoring.py  synthetic.py
-notebooks/ 00 thermodynamics + synthetic world, 01 estimator validation, 02 public-data audit
+           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py
+notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 02 public-data audit,
+           03 revised inference / predictive families / censoring with a held-out validation suite
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```
