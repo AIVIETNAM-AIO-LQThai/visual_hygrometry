@@ -36,10 +36,10 @@ On Linux/macOS use `.venv/bin/python`. Notebooks use the environment's `python3`
 ```
 
 ```bash
-cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb
+cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5 minutes on 16 parallel workers; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5 and notebook 04 about 15 minutes on 16 parallel workers; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -48,9 +48,10 @@ configs/   inference settings (roles each setting may consume)
 docs/      scope, policy, mathematics, decision log
 schemas/   JSON-schema data contracts with x-role / x-derived-from annotations
 src/visual_hygrometry/
-           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py
+           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py
 notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 02 public-data audit,
-           03 revised inference / predictive families / censoring with a held-out validation suite
+           03 revised inference / predictive families / censoring with a held-out validation suite,
+           04 context capacity (flexible context basis, visual projection, adequacy diagnostics)
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```

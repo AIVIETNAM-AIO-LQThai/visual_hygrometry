@@ -24,6 +24,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 ALPHAS = np.logspace(-3, 5, 17)
+SD_FLOOR = 0.05
 LOG2PI = np.log(2 * np.pi)
 DEFENSIVE = 0.01  # weight of a wide N(0, 4^2) component in KDE residual densities: bounds the loss on tail rows
 
@@ -54,27 +55,30 @@ def block_bootstrap(x, groups, n_boot=2000, seed=0):
     return s[idx].sum(1) / n[idx].sum(1)
 
 
-def _standardise(X, rows):
-    m, s = X[rows].mean(0), X[rows].std(0)
-    s[s == 0] = 1
+def _standardise(X, rows, ctx_cols=0, ctx_pen=1.0):
+    """Training-row mean and scale. SDs below SD_FLOOR are floored so a nearly empty column (e.g. an edge spline basis
+    function) cannot be blown up on held-out rows where it is non-zero. The first `ctx_cols` columns are scaled by
+    sqrt(ctx_pen), which multiplies their ridge penalty by ctx_pen (a lightly penalised context block)."""
+    m, s = X[rows].mean(0), np.maximum(X[rows].std(0), SD_FLOOR)
+    s[:ctx_cols] *= np.sqrt(ctx_pen)
     return m, s
 
 
 def ridge(alpha=1.0): return make_pipeline(StandardScaler(), Ridge(alpha=alpha))
 
 
-def ridge_oof(X, y, cv, alphas=ALPHAS):
+def ridge_oof(X, y, cv, alphas=ALPHAS, **pen):
     """Out-of-fold predictions of standardised ridge for every alpha, shape (n, len(alphas)); one SVD per fold."""
     P = np.empty((len(y), len(alphas)))
     for tr, te in cv:
-        m, s = _standardise(X, tr)
+        m, s = _standardise(X, tr, **pen)
         U, sv, Vt = np.linalg.svd((X[tr] - m) / s, full_matrices=False)
         P[te] = y[tr].mean() + ((X[te] - m) / s) @ Vt.T @ (sv / (sv ** 2 + alphas[:, None]) * (U.T @ (y[tr] - y[tr].mean()))).T
     return P
 
 
-def _ridge_predict(X, y, tr, te, alpha):
-    m, s = _standardise(X, tr)
+def _ridge_predict(X, y, tr, te, alpha, **pen):
+    m, s = _standardise(X, tr, **pen)
     Z = (X[tr] - m) / s
     w = np.linalg.solve(Z.T @ Z + alpha * np.eye(Z.shape[1]), Z.T @ (y[tr] - y[tr].mean()))
     return y[tr].mean() + ((X[te] - m) / s) @ w
@@ -121,7 +125,7 @@ def _crossfit_tobit(X, y, splits, groups, cens, inner, alphas=ALPHAS[::2]):
     return mu, sd, ls
 
 
-def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None):
+def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0):
     """Out-of-fold predictive distribution for the test rows of every (train, test) split: (mu, sd, log score).
 
     Mean: ridge with the penalty chosen by grouped inner CV (`model=None`), or any sklearn factory `model()`.
@@ -133,7 +137,10 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
     wide Gaussian so that a single tail row cannot dominate the mean score.
     censored: boolean mask of left-censored rows (y is an upper bound). Fitting then uses the penalised Tobit
     likelihood (Gaussian, homoscedastic, default ridge path only), and scoring uses log P(D <= y) for those rows.
+    ctx_cols, ctx_pen: the first ctx_cols columns (the context block, identical in both models of a contrast) get
+    ctx_pen times the ridge penalty of the others, so large context effects are not shrunk into the visual columns.
     """
+    pen = dict(ctx_cols=ctx_cols, ctx_pen=ctx_pen)
     if censored is not None:
         if model is not None or var != 'oof' or resid != 'gauss': raise NotImplementedError('censored fitting: Gaussian, homoscedastic, default mean model only')
         return _crossfit_tobit(X, y, splits, groups, np.asarray(censored, bool), inner)
@@ -141,10 +148,10 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
     for tr, te in splits:
         cv = list(GroupKFold(inner).split(X[tr], groups=groups[tr]))
         if model is None:
-            P = ridge_oof(X[tr], y[tr], cv)
+            P = ridge_oof(X[tr], y[tr], cv, **pen)
             k = np.argmin(((y[tr, None] - P) ** 2).mean(0))
-            mu[te], oof = _ridge_predict(X, y, tr, te, ALPHAS[k]), P[:, k]
-            fit_tr = _ridge_predict(X, y, tr, tr, ALPHAS[k]) if var == 'insample' else None
+            mu[te], oof = _ridge_predict(X, y, tr, te, ALPHAS[k], **pen), P[:, k]
+            fit_tr = _ridge_predict(X, y, tr, tr, ALPHAS[k], **pen) if var == 'insample' else None
         else:
             m = model().fit(X[tr], y[tr])
             mu[te], oof, fit_tr = m.predict(X[te]), cross_val_predict(model(), X[tr], y[tr], cv=cv), m.predict(X[tr])

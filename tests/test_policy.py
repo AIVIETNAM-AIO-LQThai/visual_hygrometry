@@ -98,3 +98,26 @@ def test_eta2_ignores_row_order_and_keeps_ties_together():
     groups = [y[x == v] for v in range(3)]
     exact = sum(len(g) * (g.mean() - y.mean()) ** 2 for g in groups) / (len(y) * y.var())
     assert policy.eta2(x, y) == pytest.approx(exact, abs=1e-12)  # one bin per distinct value
+
+
+def test_context_projection_is_sci_context_only(samples):
+    df = samples.assign(ctxproj_haze=0.1, temp_spl0=0.5, hourxtemp_s1=1.0)
+    Xc, Xvc, _, _ = select_sci(df, 'e2', ctx=['hour_local', 'temp_cond_c', 'temp_spl0', 'hourxtemp_s1', 'ctxproj_haze'], vis=['vis_haze'])
+    assert Xvc.columns.tolist()[-1] == 'vis_haze'
+    with pytest.raises(PolicyError):
+        select_sci(df, 'e2', ctx=['hour_local'], vis=['ctxproj_haze'])
+    for s in DEPLOY:
+        with pytest.raises(PolicyError):
+            select(df, s, cols=['vis_haze', 'ctxproj_haze'])
+    with pytest.raises(PolicyError):  # temperature-derived bases stay out of E1
+        select_sci(df, 'e1', ctx=['hour_local', 'temp_spl0'], vis=['vis_haze'])
+
+
+def test_flexible_context_basis_is_registered_for_e2_only():
+    from visual_hygrometry import worlds
+    df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 5, seed=0)
+    df, ctx = worlds.add_context_basis(df, np.arange(-4, 45, 4.0))
+    Xc, _, _, _ = select_sci(df, 'e2', ctx, ['vis_moist'])
+    assert Xc.shape[1] == len(ctx) == 4 + 15 + 4
+    with pytest.raises(PolicyError):
+        select_sci(df, 'e1', ctx, ['vis_moist'])

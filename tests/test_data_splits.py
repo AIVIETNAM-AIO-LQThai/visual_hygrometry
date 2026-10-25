@@ -70,3 +70,11 @@ def test_purge_removes_overlapping_histories(samples):
     tr, te = naive[1]
     s, e = data.ns(start), data.ns(end)
     assert ((s[tr][:, None] <= e[te][None]) & (e[tr][:, None] >= s[te][None])).any()  # unpurged day blocks do overlap
+
+
+def test_spline_basis_is_fixed_and_partitions_unity():
+    knots = np.arange(0, 41, 4.0)
+    a = data.spline(pd.Series([3.0, 17.5, 39.0]), knots, 'temp_spl')
+    b = data.spline(pd.Series([3.0, 17.5, 39.0, -100.0, 250.0]), knots, 'temp_spl')
+    assert np.allclose(a.to_numpy(), b.to_numpy()[:3])  # no dependence on the other rows
+    assert np.allclose(a.sum(axis=1), 1) and list(a)[0] == 'temp_spl0' and a.shape[1] == len(knots) + 2

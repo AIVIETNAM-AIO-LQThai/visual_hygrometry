@@ -116,3 +116,26 @@ def test_oracle_conditional_matches_cmi():
     mv, sv = synthetic.conditional(spec, df, 'd', ['temp', 'vis'])
     d = scoring.gauss_ls(df.d, mv, sv) - scoring.gauss_ls(df.d, mc, sc)
     assert d.mean() == pytest.approx(synthetic.cmi(spec, 'd', 'vis', 'temp'), abs=0.01)
+
+
+def test_nearly_empty_column_cannot_explode_held_out_rows():
+    rng = np.random.default_rng(6)
+    g = np.repeat(np.arange(50), 20)
+    x, y = rng.normal(size=len(g)), rng.normal(size=len(g))
+    edge = np.where(np.arange(len(g)) < 2, 1e-4, 0.0)  # basis function with almost no training support
+    edge[-20:] = 0.6                                    # ... but fully active on the held-out day
+    sp = [(g < 49, g == 49)]
+    mu, sd, ls = scoring.crossfit(np.c_[x, edge], y, sp, g)
+    assert np.all(np.abs(mu[g == 49]) < 3) and np.all(ls[g == 49] > -10)
+
+
+def test_light_context_penalty_shrinks_context_less():
+    rng = np.random.default_rng(7)
+    g = np.repeat(np.arange(40), 25)
+    X = rng.normal(size=(len(g), 2))
+    y = 3 * X[:, 0] + 0.2 * X[:, 1] + rng.normal(size=len(g))
+    sp = [(g < 30, g >= 30)]
+    assert np.allclose(scoring.crossfit(X, y, sp, g)[0], scoring.crossfit(X, y, sp, g, ctx_cols=1, ctx_pen=1.0)[0], equal_nan=True)
+    tr = g < 30
+    m, s = scoring._standardise(X, tr, ctx_cols=1, ctx_pen=0.01)
+    assert s[0] == pytest.approx(0.1 * X[tr, 0].std()) and s[1] == pytest.approx(X[tr, 1].std())

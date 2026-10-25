@@ -34,7 +34,11 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-022 | Exp 2a-B: frozen encoder reduced to k ∈ {4, 8, 16, 32} by PCA fitted on non-evaluation days, grouped tuning. | adopted | addendum; nb01 §6 |
 | D-023 | Family panel: GO requires `ls-kde+T` (1 % defensive KDE, transform rule blind to V); `gauss+T` as efficiency reference; binned (labelled as binned-D information) where censoring matters. | provisional | nb03 §4, validation A6 |
 | D-024 | Censored labels: penalised Tobit fit (or binned family); dropping censored rows is not acceptable for confirmatory work. | adopted | nb03 §5, A7; unit tests |
-| D-025 | Context capacity must exceed what the image can encode about context; polynomial adequacy diagnostic insufficient. | **open, blocking** | nb03 validation A5 failed (39 % flag rate, 100 % false rejection in V-N4) |
+| D-025 | Context capacity must exceed what the image can encode about context. Adopted remedy: spline-in-T + hour × T basis plus cross-fitted visual projection (`spline+proj`) in both models. | adopted for Q0 | nb04 validation B1: permutation Type I 0.033–0.060 in six fresh nulls (was up to 1.00) |
+| D-027 | SD floor 0.05 in standardisation. | adopted | nb04 first dev run (edge spline columns exploded); unit test |
+| D-028 | Light penalty on the context block (ctx_pen = 0.01). | rejected | nb04 dev: mixed-cue bias −1.27, P1 power 0.85 |
+| D-029 | Adequacy diagnostics (`flex`, `proj`) as a substitute for context capacity. | rejected (kept as secondary check) | nb04 validation B6: 0.37–1.00 flag rates on inadequate contexts |
+| D-030 | Effect size by mean held-out log score with unbounded Gaussian tails. | **open, blocking Q1** | nb04 validation B4/B5: single rows of −117 to −130 nats at context-support edges; proposed bounded-loss Gaussian + common-support scoring |
 | D-026 | η² leakage audit uses average ranks (row-order invariant, ties share a bin). | adopted | test_eta2_ignores_row_order_and_keeps_ties_together |
 
 ## Open questions carried to M1

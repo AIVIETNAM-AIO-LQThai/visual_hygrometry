@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import SplineTransformer
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -62,3 +63,10 @@ def fourier(x, period, k, name):
     w = 2 * np.pi * np.asarray(x, float)[:, None] * np.arange(1, k + 1) / period
     cols = [f'{name}_{f}{j}' for f in 'sc' for j in range(1, k + 1)]
     return pd.DataFrame(np.hstack([np.sin(w), np.cos(w)]), columns=cols, index=getattr(x, 'index', None))
+
+
+def spline(x, knots, name):
+    """Cubic B-spline basis on a fixed knot grid (linear beyond it); data-independent, so it cannot leak test statistics."""
+    knots = np.asarray(knots, float)[:, None]
+    B = SplineTransformer(knots=knots, degree=3, extrapolation='linear').fit(knots).transform(np.asarray(x, float)[:, None])
+    return pd.DataFrame(B, columns=[f'{name}{j}' for j in range(B.shape[1])], index=getattr(x, 'index', None))

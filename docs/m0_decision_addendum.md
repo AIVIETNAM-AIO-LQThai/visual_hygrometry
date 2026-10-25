@@ -2,7 +2,7 @@
 
 Review decision: **M0 accepted as an exploratory milestone; the estimator is not approved for confirmatory Exp 2a. MODIFY.** This addendum records what the revision changed, what it established, and what remains open. Evidence: [notebooks/03](../notebooks/03_inference_and_density_revision.ipynb) (new), [notebooks/01](../notebooks/01_information_estimator.ipynb) (unchanged record of the first validation, including its failures), unit tests.
 
-**Status after revision: not yet acceptable for confirmatory use.** 7 of 8 pre-declared validation criteria pass. A5 fails: a temperature non-linearity that the context model cannot represent but the image encodes produces false positives that neither the test nor the adequacy diagnostic catches reliably.
+**Status after revision: not yet acceptable for confirmatory use.** Notebook 03: 7 of 8 pre-declared validation criteria pass; A5 fails (context-capacity false positives). Notebook 04 (below) fixes A5 for the zero-information test, but its own fresh validation fails on effect-size tails.
 
 ## What kind of evidence each statement rests on
 
@@ -76,6 +76,41 @@ The M0 code fitted censored bounds as exact targets. The fit now maximises a pen
 - **D-020, sensor roles.** Confirmatory physical claims require the conditioning temperature from an independent aspirated unit, and the label from a separately shielded unit. Conditioning on the label unit's own temperature is a mandatory *sensitivity* analysis (exact D ↔ RH invariance, coupled errors), never the sole evaluation. **NEON is approved for public-data feasibility only** until probe shielding, image–sensor geometry, timestamp pairing and radiation bias are verified.
 - **D-021, Exp 2a-A (interpretable).** At most 10 visual features, defined before any label is inspected: far/mid/near region contrast and its ratio (apparent extinction proxy), sky-band luminance and blue/red ratio, horizon-band saturation, ground-region darkness/gloss (wetness proxy), vegetation colour index, and image-wide sharpness. All are computed on radiometrically normalised images with masks fixed per site. A null result here does **not** end the identifiability study.
 - **D-022, Exp 2a-B (frozen encoder).** A pretrained image encoder kept frozen. Its embedding is reduced to k ∈ {4, 8, 16, 32} dimensions by PCA fitted on non-evaluation days only, with day-grouped tuning and the same family panel and inference. k is reported as a dimension-vs-days curve; no k is chosen on evaluation data. Notebook 01 §6 shows why the budget matters.
+
+## Context capacity (notebook 04)
+
+**Remedy.** Both models now get the same flexible context:
+- a cubic B-spline in T on a fixed knot grid (−4…44 °C every 4 K, chosen before any run);
+- T × hour-basis products;
+- `ctxproj_*`, a cross-fitted gradient-boosting estimate of E[V | hour, T], built without labels.
+
+With the projection in the context, the joint model can gain only from V − E[V|C], and the permutation test's linear residualisation removes non-linear context structure. Development compared `base`, `spline`, `proj`, `spline+proj` and `spline+proj/light`. `spline+proj` was chosen.
+
+The **light context penalty** (context block penalised 100× less) is **rejected**: it produced catastrophic rows (mixed-cue bias −1.27). A first development run blew up (±10³ nats) because edge spline columns had almost no training support; standardisation now floors SDs at 0.05 (`scoring.SD_FLOOR`, unit-tested).
+
+**Fresh validation** (seeds 100 000+, worlds new in sampling, dependence, β and non-linearity shapes; criteria declared before the run):
+
+| id | criterion | result |
+|---|---|---|
+| B1 | permutation Type I ≤ 0.085 in six nulls (incl. bump, kink, tanh × sin, 3rd hour harmonic) | **pass** 0.033–0.060 (`base`: up to 1.00) |
+| B2 | frozen Type I ≤ 0.085 | fail, 0.087 in the bump world |
+| B3 | power ≥ 0.80 | **pass** 0.97 / 0.99 |
+| B4 | |bias| ≤ 0.01 plain, ≤ 0.015 mixed cue | **fail**: −0.005, −0.027, −0.105, −0.222 |
+| B5 | frozen coverage of truth and target ≥ 0.88 | fail: target 0.83 / 0.86 in mixed worlds |
+| B6 | diagnostics on the `base` context flag inadequacy ≥ 0.90 | fail: 0.75 / 1.00 / 0.37 / 0.92 |
+| B7 | diagnostics quiet on adequate contexts ≤ 0.10 | **pass** 0.00 |
+
+**Diagnosis of B4** (60 new replicates, seeds 110 000+). Medians are right (0.055 vs 0.05). Some replicates contain single held-out rows at −117 to −130 nats at the temperature extremes (2–39 °C), where the cue is large and the joint model extrapolates. The mean log score is dominated by those rows. Clipping rows at −5 nats gives 0.062.
+
+**What this establishes.**
+- The context-capacity failure of the zero-information test (A5) is fixed on fresh worlds.
+- Effect-size estimation by mean held-out log score is not yet robust to extrapolation at the edge of the context support.
+- Adequacy diagnostics are a secondary check, not a substitute for context capacity.
+
+**Proposed next step:**
+- Bound per-row losses in the Gaussian family with the defensive mixture already used by `ls-kde`. It stays a proper predictive, so the estimand remains the mean log-score contrast of that predictive.
+- Restrict scoring to rows whose context lies within the training support, reporting excluded rows. This changes the estimand to information on the supported context region and must be stated as such.
+- Develop on the development worlds, then validate on another fresh suite.
 
 ## Reproducibility note on notebook 01
 

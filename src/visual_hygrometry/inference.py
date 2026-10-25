@@ -7,6 +7,8 @@ scientifically meaningful threshold is a third, separate comparison of the inter
 """
 import numpy as np
 from scipy import stats
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.model_selection import GroupKFold, cross_val_predict
 
 from .scoring import _standardise, crossfit
 
@@ -57,3 +59,34 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, **kw):
     # permuted residuals are re-projected so every draw shares the observed in-sample V-C projection exactly
     null = np.array([stat(Vhat + orth(R[pos[rng.permutation(pos.shape[0])][gi, si]])) for _ in range(n_perm)])
     return obs, (1 + np.sum(null >= obs)) / (1 + n_perm), null
+
+
+def boost(): return HistGradientBoostingRegressor(max_iter=100, learning_rate=0.1)
+
+
+def project(C, V, groups, inner=5):
+    """Cross-fitted E[V | C] by gradient boosting, one column per visual feature; labels are never used.
+
+    Added to the context of *both* models, it gives q(D|C) exactly the function of C that the image tracks, so the
+    joint model can only gain from V - E[V|C]. Out-of-fold by groups, so V's own noise is not copied into the context.
+    """
+    cv = list(GroupKFold(inner).split(C, groups=groups))
+    return np.column_stack([cross_val_predict(boost(), C, v, cv=cv) for v in np.asarray(V, float).T])
+
+
+def adequacy(C, y, splits, groups, raw, Vhat=None, level=0.95, ls_flex=None):
+    """Context-adequacy diagnostics: one-sided lower bounds of held-out log-score gains over the ridge context model q(D|C).
+
+    'flex': a gradient-boosting Gaussian context model on the raw context variables `raw` (non-parametric in all of
+    them, interactions included; pass `ls_flex` to reuse its scores). 'proj': q(D|C) plus the cross-fitted visual
+    projection `Vhat` (the context repair that V could perform). A lower bound > 0 means the context model is not
+    competitive and no contrast may be interpreted.
+    """
+    ls_c = crossfit(C, y, splits, groups)[2]
+    d = (crossfit(raw, y, splits, groups, model=boost)[2] if ls_flex is None else ls_flex) - ls_c
+    ok = np.isfinite(d)
+    out = {'flex': cluster_lower(d[ok], groups[ok], level)}
+    if Vhat is not None:
+        d = crossfit(np.c_[C, Vhat], y, splits, groups)[2] - ls_c
+        out['proj'] = cluster_lower(d[ok], groups[ok], level)
+    return out
