@@ -33,7 +33,7 @@ def cluster_lower(d, groups, level=0.95):
     return m - stats.t.ppf(level, G - 1) * se
 
 
-def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, **kw):
+def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, **kw):
     """Day-block conditional permutation test of H0: V independent of D given C, refitting the joint model every draw.
 
     V is split into a linear prediction from C (labels unused) and a residual. Residuals of whole groups are permuted,
@@ -41,6 +41,7 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, **kw):
     is linear in C survives every draw while any link between the residual and D is broken. Validity needs the
     residual blocks to be exchangeable under H0: V structure that is non-linear in C-variables other than slot is
     *not* preserved and can make the test anti-conservative. Requires a complete group x slot grid.
+    keep: optional row mask; only those rows enter the statistic (same rows in every draw).
     Returns (observed contrast, p-value, null contrasts).
     """
     _, gi = np.unique(groups, return_inverse=True)
@@ -54,7 +55,8 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, **kw):
     R = orth(V)
     Vhat = V - R
     ls_c = crossfit(C, y, splits, groups, **kw)[2]
-    stat = lambda Vx: np.nanmean(crossfit(np.c_[C, Vx], y, splits, groups, **kw)[2] - ls_c)
+    rows = np.ones(len(y), bool) if keep is None else keep
+    stat = lambda Vx: np.nanmean((crossfit(np.c_[C, Vx], y, splits, groups, **kw)[2] - ls_c)[rows])
     obs, rng = stat(V), np.random.default_rng(seed)
     # permuted residuals are re-projected so every draw shares the observed in-sample V-C projection exactly
     null = np.array([stat(Vhat + orth(R[pos[rng.permutation(pos.shape[0])][gi, si]])) for _ in range(n_perm)])

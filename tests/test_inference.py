@@ -58,3 +58,13 @@ def test_adequacy_flags_missing_nonlinearity_only():
         V = (0.4 * t ** 2 + rng.normal(0, .3, len(g)))[:, None]
         out = inference.adequacy(raw, y, sp, g, raw, Vhat=inference.project(raw, V, g))
         assert (out['flex'] > 0) == flagged and (out['proj'] > 0) == flagged
+
+
+def test_perm_test_keep_mask_restricts_rows_consistently():
+    C, V, y, g, slot = _grid(0.5, seed=5)
+    sp = splits.kfold(splits.assign_folds(g, 4))
+    full = inference.perm_test(C, V, y, sp, g, slot, n_perm=5, seed=1)
+    same = inference.perm_test(C, V, y, sp, g, slot, n_perm=5, seed=1, keep=np.ones(len(g), bool))
+    assert full[0] == pytest.approx(same[0]) and np.allclose(full[2], same[2])
+    part = inference.perm_test(C, V, y, sp, g, slot, n_perm=5, seed=1, keep=slot < 6)
+    assert part[0] != pytest.approx(full[0])

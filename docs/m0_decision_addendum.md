@@ -2,7 +2,7 @@
 
 Review decision: **M0 accepted as an exploratory milestone; the estimator is not approved for confirmatory Exp 2a. MODIFY.** This addendum records what the revision changed, what it established, and what remains open. Evidence: [notebooks/03](../notebooks/03_inference_and_density_revision.ipynb) (new), [notebooks/01](../notebooks/01_information_estimator.ipynb) (unchanged record of the first validation, including its failures), unit tests.
 
-**Status after revision: not yet acceptable for confirmatory use.** Notebook 03: 7 of 8 pre-declared validation criteria pass; A5 fails (context-capacity false positives). Notebook 04 (below) fixes A5 for the zero-information test, but its own fresh validation fails on effect-size tails.
+**Status after revision: not yet acceptable for confirmatory use.** Notebook 03: 7 of 8 pre-declared validation criteria pass; A5 fails (context-capacity false positives). Notebook 04 fixes A5 for the zero-information test; notebook 05 fixes the effect-size tails. The effect-size interval for E2 remains open (review requested).
 
 ## What kind of evidence each statement rests on
 
@@ -111,6 +111,20 @@ The **light context penalty** (context block penalised 100× less) is **rejected
 - Bound per-row losses in the Gaussian family with the defensive mixture already used by `ls-kde`. It stays a proper predictive, so the estimand remains the mean log-score contrast of that predictive.
 - Restrict scoring to rows whose context lies within the training support, reporting excluded rows. This changes the estimand to information on the supported context region and must be stated as such.
 - Develop on the development worlds, then validate on another fresh suite.
+
+## Tail-robust scoring (notebook 05)
+
+**Remedies.**
+- The Gaussian predictive is mixed 1 % with a Cauchy(μ, 4σ) component (`scoring.gauss_ls(..., robust=True)`). It is still a proper predictive, and a row's loss grows only logarithmically with its error.
+- Scoring is restricted to rows whose (hour, T) lie inside the 0.5–99.5 % quantile box of that fold's training rows (`scoring.support_mask`). The excluded share is reported.
+
+Development used tail-provoking worlds (T anomaly SD 4.5 K, quadratic and exponential cues), where plain scoring produced rows down to −5983 nats. `sp+robust+support` was chosen.
+
+**Fresh validation (seeds 120 000+): 5 of 7 pass.**
+- **Pass:** permutation Type I 0.027–0.060 in six new nulls (hinge, cubic, softplus, bilinear, regime with strong serial dependence); power 1.00; mean bias ≤ 0.009; worst row −4.2 nats (plain Gaussian −10 931); 1.5 % off-support.
+- **Fail:** the frozen hold-out interval covers its own target (0.91–0.93) but not E2 in mixed-cue worlds (0.75–0.82); its one-sided test rejects a cubic null 0.167.
+
+**Status.** Q0 (zero information) and the point estimate pass on fresh worlds. The effect-size interval is unresolved: the frozen interval targets the information captured by half-data models, which is not E2. This is a methodological decision, prepared for independent review in `reviews/m0_revision2_review.md`.
 
 ## Reproducibility note on notebook 01
 

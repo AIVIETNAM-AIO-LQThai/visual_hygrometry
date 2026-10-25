@@ -38,7 +38,10 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-027 | SD floor 0.05 in standardisation. | adopted | nb04 first dev run (edge spline columns exploded); unit test |
 | D-028 | Light penalty on the context block (ctx_pen = 0.01). | rejected | nb04 dev: mixed-cue bias −1.27, P1 power 0.85 |
 | D-029 | Adequacy diagnostics (`flex`, `proj`) as a substitute for context capacity. | rejected (kept as secondary check) | nb04 validation B6: 0.37–1.00 flag rates on inadequate contexts |
-| D-030 | Effect size by mean held-out log score with unbounded Gaussian tails. | **open, blocking Q1** | nb04 validation B4/B5: single rows of −117 to −130 nats at context-support edges; proposed bounded-loss Gaussian + common-support scoring |
+| D-030 | Effect size by mean held-out log score with unbounded Gaussian tails. | rejected | nb04 validation B4/B5: single rows of −117 to −130 nats at context-support edges |
+| D-031 | Robust Gaussian predictive (1 % Cauchy(μ, 4σ) mixture) and common-support scoring (0.5–99.5 % training box of hour, T; excluded share reported). | adopted | nb05 validation C1, C3, C4, C6, C7 pass; worst row −4.2 nats |
+| D-032 | Frozen hold-out one-sided test for Q0. | rejected | nb05 validation C2: 0.167 in a cubic null |
+| D-033 | Interval and estimand for the effect size (frozen captured information vs E2 on the support). | **open, review requested** | nb05 validation C5: frozen interval covers its target 0.91–0.93, E2 only 0.75–0.82 in mixed cues; reviews/m0_revision2_review.md |
 | D-026 | η² leakage audit uses average ranks (row-order invariant, ties share a bin). | adopted | test_eta2_ignores_row_order_and_keeps_ties_together |
 
 ## Open questions carried to M1

@@ -139,3 +139,26 @@ def test_light_context_penalty_shrinks_context_less():
     tr = g < 30
     m, s = scoring._standardise(X, tr, ctx_cols=1, ctx_pen=0.01)
     assert s[0] == pytest.approx(0.1 * X[tr, 0].std()) and s[1] == pytest.approx(X[tr, 1].std())
+
+
+def test_robust_score_is_proper_mixture_with_bounded_tail_growth():
+    mu, sd = np.zeros(3), np.ones(3)
+    y = np.array([0.0, 3.0, 50.0])
+    ls = scoring.gauss_ls(y, mu, sd, robust=True)
+    mix = lambda x: .99 * stats.norm.pdf(x) + .01 * stats.cauchy.pdf(x, scale=4)
+    assert np.allclose(ls, np.log(mix(y)))
+    assert integrate.quad(mix, -np.inf, np.inf)[0] == pytest.approx(1.0, abs=1e-6)
+    assert ls[2] > -15 and scoring.gauss_ls(y, mu, sd)[2] < -1000  # 50 sd error: ~-13 nats instead of -1251
+    c = scoring.gauss_ls(np.array([-1.0]), np.zeros(1), np.ones(1), censored=np.array([True]), robust=True)
+    assert c[0] == pytest.approx(np.log(.99 * stats.norm.cdf(-1) + .01 * stats.cauchy.cdf(-1, scale=4)))
+
+
+def test_support_mask_uses_training_rows_only():
+    R = np.r_[np.linspace(0, 10, 100), [-5.0, 5.0, 25.0]]
+    sp = [(np.arange(103) < 100, np.arange(103) >= 100)]
+    keep = scoring.support_mask(R, sp, q=0.0)
+    assert keep.tolist()[-3:] == [False, True, False] and not keep[:100].any()
+    g = np.repeat(np.arange(103), 1)
+    y = np.r_[np.random.default_rng(0).normal(size=100), 0, 0, 0]
+    r = scoring.contrast(R[:, None], np.c_[R, R], y, sp, g, keep=keep)
+    assert r.scored.sum() == 1 and len(r.d) == 1

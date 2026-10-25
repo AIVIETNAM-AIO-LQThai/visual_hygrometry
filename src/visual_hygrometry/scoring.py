@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import minimize, minimize_scalar
 from scipy.special import log_ndtr, ndtr
-from scipy.stats import gaussian_kde, norm
+from scipy.stats import cauchy, gaussian_kde, norm
 from sklearn.linear_model import LogisticRegression, PoissonRegressor, Ridge
 from sklearn.model_selection import GroupKFold, cross_val_predict
 from sklearn.pipeline import make_pipeline
@@ -29,9 +29,17 @@ LOG2PI = np.log(2 * np.pi)
 DEFENSIVE = 0.01  # weight of a wide N(0, 4^2) component in KDE residual densities: bounds the loss on tail rows
 
 
-def gauss_ls(y, mu, sd, censored=None):
-    """Log predictive density (nats) of y under N(mu, sd^2); rows flagged `censored` are upper bounds scored as log P(Y <= y)."""
+def gauss_ls(y, mu, sd, censored=None, robust=False):
+    """Log predictive density (nats) of y under N(mu, sd^2); rows flagged `censored` are upper bounds scored as log P(Y <= y).
+
+    robust=True scores the proper mixture (1 - DEFENSIVE) N(mu, sd^2) + DEFENSIVE Cauchy(mu, 4 sd): a row's loss then grows
+    only logarithmically with its error, so a few extrapolated rows cannot dominate a mean log score.
+    """
     z = (y - mu) / sd
+    if robust:
+        a, b = np.log1p(-DEFENSIVE), np.log(DEFENSIVE)
+        ls = np.logaddexp(a + norm.logpdf(z), b + cauchy.logpdf(z, scale=4)) - np.log(sd)
+        return ls if censored is None else np.where(censored, np.logaddexp(a + log_ndtr(z), b + cauchy.logcdf(z, scale=4)), ls)
     ls = -0.5 * z ** 2 - np.log(sd) - 0.5 * LOG2PI
     return ls if censored is None else np.where(censored, log_ndtr(z), ls)
 
@@ -105,7 +113,7 @@ def _censored_sd(r, cens):
     return np.exp(minimize_scalar(f, bounds=(np.log(r.std()) - 5, np.log(r.std()) + 5), method='bounded').x)
 
 
-def _crossfit_tobit(X, y, splits, groups, cens, inner, alphas=ALPHAS[::2]):
+def _crossfit_tobit(X, y, splits, groups, cens, inner, robust=False, alphas=ALPHAS[::2]):
     mu, sd, ls = (np.full(len(y), np.nan) for _ in range(3))
     for tr, te in splits:
         Xt, yt, ct, gt = X[tr], y[tr], cens[tr], groups[tr]
@@ -121,11 +129,11 @@ def _crossfit_tobit(X, y, splits, groups, cens, inner, alphas=ALPHAS[::2]):
         m, s = _standardise(Xt, slice(None))
         th = _tobit((Xt - m) / s, yt, ct, alphas[k])
         mu[te], sd[te] = th[0] + ((X[te] - m) / s) @ th[1:-1], _censored_sd(yt - oof[:, k], ct)
-        ls[te] = gauss_ls(y[te], mu[te], sd[te], cens[te])
+        ls[te] = gauss_ls(y[te], mu[te], sd[te], cens[te], robust)
     return mu, sd, ls
 
 
-def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0):
+def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0, robust=False):
     """Out-of-fold predictive distribution for the test rows of every (train, test) split: (mu, sd, log score).
 
     Mean: ridge with the penalty chosen by grouped inner CV (`model=None`), or any sklearn factory `model()`.
@@ -139,11 +147,12 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
     likelihood (Gaussian, homoscedastic, default ridge path only), and scoring uses log P(D <= y) for those rows.
     ctx_cols, ctx_pen: the first ctx_cols columns (the context block, identical in both models of a contrast) get
     ctx_pen times the ridge penalty of the others, so large context effects are not shrunk into the visual columns.
+    robust: score Gaussian residuals with the defensive Cauchy mixture of `gauss_ls` (the KDE family is always defensive).
     """
     pen = dict(ctx_cols=ctx_cols, ctx_pen=ctx_pen)
     if censored is not None:
         if model is not None or var != 'oof' or resid != 'gauss': raise NotImplementedError('censored fitting: Gaussian, homoscedastic, default mean model only')
-        return _crossfit_tobit(X, y, splits, groups, np.asarray(censored, bool), inner)
+        return _crossfit_tobit(X, y, splits, groups, np.asarray(censored, bool), inner, robust)
     mu, sd, ls = (np.full(len(y), np.nan) for _ in range(3))
     for tr, te in splits:
         cv = list(GroupKFold(inner).split(X[tr], groups=groups[tr]))
@@ -166,7 +175,7 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
             z = (y[te] - mu[te]) / sd[te]
             ls[te] = np.logaddexp(np.log1p(-DEFENSIVE) + gaussian_kde(r / s_tr).logpdf(z), np.log(DEFENSIVE) + norm.logpdf(z, 0, 4)) - np.log(sd[te])
         else:
-            ls[te] = gauss_ls(y[te], mu[te], sd[te])
+            ls[te] = gauss_ls(y[te], mu[te], sd[te], robust=robust)
     return mu, sd, ls
 
 
@@ -219,10 +228,26 @@ class Contrast:
         return np.quantile(block_bootstrap(self.d, self.groups, n_boot, seed), [a, 1 - a])
 
 
-def contrast(Xc, Xvc, y, splits, groups, family='gauss', **kw):
-    """Held-out log-score improvement of q(D|V,C) over q(D|C), both fitted identically by the chosen family."""
+def support_mask(R, splits, q=0.005):
+    """Rows scored in some split whose raw context R lies inside that split's training quantile box [q, 1 - q] per column.
+
+    Scoring only these rows restricts the estimand to information on the supported context region, where neither model
+    extrapolates; the excluded share must be reported with every result.
+    """
+    R, keep = np.asarray(R, float).reshape(len(R), -1), np.zeros(len(R), bool)
+    for tr, te in splits:
+        lo, hi = np.quantile(R[tr], [q, 1 - q], axis=0)
+        keep[te] = np.all((R[te] >= lo) & (R[te] <= hi), axis=1)
+    return keep
+
+
+def contrast(Xc, Xvc, y, splits, groups, family='gauss', keep=None, **kw):
+    """Held-out log-score improvement of q(D|V,C) over q(D|C), both fitted identically by the chosen family.
+
+    keep: optional row mask (e.g. `support_mask`); rows outside it are fitted on but never scored.
+    """
     fit = crossfit if family == 'gauss' else crossfit_binned
     pc, pv = fit(Xc, y, splits, groups, **kw), fit(Xvc, y, splits, groups, **kw)
     d = pv[2] - pc[2]
-    ok = np.isfinite(d)
+    ok = np.isfinite(d) & (True if keep is None else keep)
     return Contrast(d[ok], np.asarray(groups)[ok], pc, pv, ok)

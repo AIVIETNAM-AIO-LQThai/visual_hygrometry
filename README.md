@@ -14,7 +14,8 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | thermodynamics | `thermo.py`, [notebooks/00](notebooks/00_thermodynamics_and_synthetic_data.ipynb) | validated against steam tables |
 | blocked splits, purging | `splits.py` | tested |
 | information estimator | `scoring.py`, `synthetic.py`, [notebooks/01](notebooks/01_information_estimator.ipynb) | first validation (kept as record, including failures) |
-| revised inference, families, censoring | `inference.py`, `scoring.py`, [notebooks/03](notebooks/03_inference_and_density_revision.ipynb), [addendum](docs/m0_decision_addendum.md) | 7/8 held-out criteria pass; context-capacity check (A5) fails, blocks confirmatory use |
+| revised inference, families, censoring | `inference.py`, `scoring.py`, [notebooks/03](notebooks/03_inference_and_density_revision.ipynb), [addendum](docs/m0_decision_addendum.md) | 7/8 held-out criteria pass; A5 (context capacity) failed |
+| context capacity, tail-robust scoring | [notebooks/04](notebooks/04_context_capacity.ipynb), [notebooks/05](notebooks/05_tail_robust_scoring.ipynb), `worlds.py` | zero-information test and point estimate pass fresh validation; effect-size interval open ([review](reviews/m0_revision2_review.md)) |
 | public data | [notebooks/02](notebooks/02_public_data_audit.ipynb) | NEON stage 1 (metadata); token now available via `.env` (never committed); feasibility use only |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
@@ -36,10 +37,10 @@ On Linux/macOS use `.venv/bin/python`. Notebooks use the environment's `python3`
 ```
 
 ```bash
-cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb
+cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb 05_tail_robust_scoring.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5 and notebook 04 about 15 minutes on 16 parallel workers; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5 and notebooks 04 and 05 about 20 minutes each on 16 parallel workers; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -51,7 +52,8 @@ src/visual_hygrometry/
            thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py
 notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 02 public-data audit,
            03 revised inference / predictive families / censoring with a held-out validation suite,
-           04 context capacity (flexible context basis, visual projection, adequacy diagnostics)
+           04 context capacity (flexible context basis, visual projection, adequacy diagnostics),
+           05 tail-robust scoring (defensive Gaussian, common support) with a fresh validation suite
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```
