@@ -44,6 +44,21 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-033 | Interval and estimand for the effect size (frozen captured information vs E2 on the support). | **open, review requested** | nb05 validation C5: frozen interval covers its target 0.91–0.93, E2 only 0.75–0.82 in mixed cues; reviews/m0_revision2_review.md |
 | D-026 | η² leakage audit uses average ranks (row-order invariant, ties share a bin). | adopted | test_eta2_ignores_row_order_and_keeps_ties_together |
 
+## After independent review 2 (see [m0_review2_addendum.md](m0_review2_addendum.md))
+
+| id | decision | status | evidence / revisit when |
+|---|---|---|---|
+| D-034 | Estimands: E2 scientific; G(n_fit) = held-out predictive log-score gain of the defined model pair fitted on n_fit days (operational effect size for M1); permutation test = exploratory zero-information test, not a bound on E2. | adopted | review 2 |
+| D-035 | Visual projection fitted per split on training days only (`project_splits`); null generator may use analysis-sample (C, V), never D. | adopted | review 2 item 2; test_project_splits_never_uses_test_rows |
+| D-036 | Q0 null: cyclic-shift refitting permutation (shifts ≥ 7 days, enumerated), contiguous 16-day folds, 3-day purge, strata at declared breaks; validity region ρ ≤ 0.6. Day-unit permutation only for ρ ≤ 0.3. | adopted for exploratory M1 | nb06 sweep + validation V1/V2 |
+| D-037 | G interval: chronological hold-out (60 % / 2-day purge / 40 %), week-cluster t. Newey–West and day clusters rejected for ≤ 30 evaluation days. | adopted for exploratory M1 | nb06 validation V3/V4 |
+| D-038 | Support box q = 0.5 % kept; excluded share and support-dependent truth reported; never q ≥ 2.5 % without a sensitivity check. | adopted | nb06 §4 |
+| D-039 | Robust mixture 1 % Cauchy(μ, 4σ) kept; not influential once support is restricted; log loss unbounded. | adopted | nb06 §4 |
+| D-040 | NEON label: probe-temperature D vs hybrid D (aspirated T, probe dew point). | **open, review requested** | nb07: probe +0.55 K by day, up to +2 K |
+| D-041 | Near-saturation censoring for HMP155 labels. | **open, review requested** | nb07: no reading above 99.02 % RH; per-minute rule censors 5 minutes, specification rule 3.3 % |
+| D-042 | PhenoCam overlay mask (three fixed rectangles, 3.1 %) applied before any visual feature; exposure and camera temperature never features. | adopted | nb07 §6–8 |
+| D-043 | NEON PhenoCam imagery (auto-haze, AGC, JPEG) is not used for extinction-mechanism claims. | adopted | nb07 `.meta` |
+
 ## Open questions carried to M1
 
 - CO-RH construction (direct RH head vs joint `p(T, D | V)`), and the clock-only reference for CO.

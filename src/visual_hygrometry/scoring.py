@@ -33,13 +33,15 @@ def gauss_ls(y, mu, sd, censored=None, robust=False):
     """Log predictive density (nats) of y under N(mu, sd^2); rows flagged `censored` are upper bounds scored as log P(Y <= y).
 
     robust=True scores the proper mixture (1 - DEFENSIVE) N(mu, sd^2) + DEFENSIVE Cauchy(mu, 4 sd): a row's loss then grows
-    only logarithmically with its error, so a few extrapolated rows cannot dominate a mean log score.
+    only logarithmically with its error (it is not bounded), so a few extrapolated rows dominate a mean log score far less.
+    robust=(eps, scale) sets the mixture weight and Cauchy scale explicitly.
     """
     z = (y - mu) / sd
     if robust:
-        a, b = np.log1p(-DEFENSIVE), np.log(DEFENSIVE)
-        ls = np.logaddexp(a + norm.logpdf(z), b + cauchy.logpdf(z, scale=4)) - np.log(sd)
-        return ls if censored is None else np.where(censored, np.logaddexp(a + log_ndtr(z), b + cauchy.logcdf(z, scale=4)), ls)
+        eps, scale = (DEFENSIVE, 4.0) if robust is True else robust
+        a, b = np.log1p(-eps), np.log(eps)
+        ls = np.logaddexp(a + norm.logpdf(z), b + cauchy.logpdf(z, scale=scale)) - np.log(sd)
+        return ls if censored is None else np.where(censored, np.logaddexp(a + log_ndtr(z), b + cauchy.logcdf(z, scale=scale)), ls)
     ls = -0.5 * z ** 2 - np.log(sd) - 0.5 * LOG2PI
     return ls if censored is None else np.where(censored, log_ndtr(z), ls)
 
@@ -113,9 +115,10 @@ def _censored_sd(r, cens):
     return np.exp(minimize_scalar(f, bounds=(np.log(r.std()) - 5, np.log(r.std()) + 5), method='bounded').x)
 
 
-def _crossfit_tobit(X, y, splits, groups, cens, inner, robust=False, alphas=ALPHAS[::2]):
+def _crossfit_tobit(XS, y, splits, groups, cens, inner, robust=False, alphas=ALPHAS[::2]):
     mu, sd, ls = (np.full(len(y), np.nan) for _ in range(3))
-    for tr, te in splits:
+    for k, (tr, te) in enumerate(splits):
+        X = XS[k] if isinstance(XS, list) else XS
         Xt, yt, ct, gt = X[tr], y[tr], cens[tr], groups[tr]
         oof = np.empty((len(yt), len(alphas)))
         for itr, ite in GroupKFold(inner).split(Xt, groups=gt):
@@ -133,9 +136,11 @@ def _crossfit_tobit(X, y, splits, groups, cens, inner, robust=False, alphas=ALPH
     return mu, sd, ls
 
 
-def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0, robust=False):
+def crossfit(XS, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0, robust=False):
     """Out-of-fold predictive distribution for the test rows of every (train, test) split: (mu, sd, log score).
 
+    XS: one design matrix, or a list with one full-length matrix per split (fold-specific learned features such as
+    `inference.project_splits`; only the split's train and test rows are read).
     Mean: ridge with the penalty chosen by grouped inner CV (`model=None`), or any sklearn factory `model()`.
     var='oof': homoscedastic SD from grouped inner out-of-fold residuals.
     var='hetero': log-link (quasi-Poisson) regression of those squared residuals, consistent for E[r^2 | x].
@@ -152,9 +157,10 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
     pen = dict(ctx_cols=ctx_cols, ctx_pen=ctx_pen)
     if censored is not None:
         if model is not None or var != 'oof' or resid != 'gauss': raise NotImplementedError('censored fitting: Gaussian, homoscedastic, default mean model only')
-        return _crossfit_tobit(X, y, splits, groups, np.asarray(censored, bool), inner, robust)
+        return _crossfit_tobit(XS, y, splits, groups, np.asarray(censored, bool), inner, robust)
     mu, sd, ls = (np.full(len(y), np.nan) for _ in range(3))
-    for tr, te in splits:
+    for j, (tr, te) in enumerate(splits):
+        X = XS[j] if isinstance(XS, list) else XS
         cv = list(GroupKFold(inner).split(X[tr], groups=groups[tr]))
         if model is None:
             P = ridge_oof(X[tr], y[tr], cv, **pen)
@@ -179,7 +185,7 @@ def crossfit(X, y, splits, groups, model=None, var='oof', resid='gauss', inner=5
     return mu, sd, ls
 
 
-def crossfit_binned(X, y, splits, groups, edges, Cs=(0.01, 0.1, 1.0, 10.0), inner=5, censored=None, floor=1e-12):
+def crossfit_binned(XS, y, splits, groups, edges, Cs=(0.01, 0.1, 1.0, 10.0), inner=5, censored=None, floor=1e-12):
     """Out-of-fold multinomial-logistic predictive distribution over bins B = #(edges < y): (probabilities, B, log score).
 
     `edges` are fixed in advance (never from the data under evaluation). Left-censored rows are exact as long as their
@@ -197,7 +203,8 @@ def crossfit_binned(X, y, splits, groups, edges, Cs=(0.01, 0.1, 1.0, 10.0), inne
         out[:, lr.classes_] = np.maximum(lr.predict_proba(Xb), floor)
         return out / out.sum(1, keepdims=True)
 
-    for tr, te in splits:
+    for j, (tr, te) in enumerate(splits):
+        X = XS[j] if isinstance(XS, list) else XS
         m, s = _standardise(X, tr)
         Z, bt = (X - m) / s, b[tr]
         Zt = Z[tr]

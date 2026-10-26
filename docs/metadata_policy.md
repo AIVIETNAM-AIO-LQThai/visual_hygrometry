@@ -38,7 +38,7 @@ Layers 1–5 and 7 are exact. Layer 6 is a heuristic net: it catches near-copies
 
 ## Leakage the column policy cannot see
 
-- **Pixels**: road and webcam images often burn in timestamps and even station readings (temperature, sometimes humidity). Overlays are masked before feature extraction and the frame manifest records `overlay_masked`; each public source gets a visual audit of sample frames.
+- **Pixels**: road and webcam images often burn in timestamps and even station readings (temperature, sometimes humidity). Overlays are masked before feature extraction and the frame manifest records `overlay_masked`; each public source gets a visual audit of sample frames. *Verified for NEON PhenoCam (HARV, July 2023, notebook 07):* every frame burns in the UTC time, the camera's internal temperature (r = +0.90 with air temperature) and the auto-exposure value in three top-left lines. The overlay position is constant in all `.meta` files, so a fixed mask applies (3.1 % of the 1296 × 960 frame). The same cameras run in-camera haze compensation (`auto_haze=1`), which alters the contrast signal an extinction pathway would use.
 - **File metadata**: EXIF timestamps, filenames with dates, and per-frame exposure are not features; frame ordering inside a sample must not encode absolute time for CO.
 - **Camera state**: auto-exposure, IR-cut switching, internal heaters and lens droplets correlate with time and humidity; they are QC flags (`frame.qc`), and CO features must be invariant to them or stratified by them.
 - **Processing fitted on test data**: scalers, PCA, colour normalisation, scene calibration, variance models and teachers are fitted inside training folds only. The Fourier clock basis is data-independent by construction.

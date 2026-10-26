@@ -162,3 +162,22 @@ def test_support_mask_uses_training_rows_only():
     y = np.r_[np.random.default_rng(0).normal(size=100), 0, 0, 0]
     r = scoring.contrast(R[:, None], np.c_[R, R], y, sp, g, keep=keep)
     assert r.scored.sum() == 1 and len(r.d) == 1
+
+
+def test_persistent_day_levels_keep_marginal_variance():
+    spec = {'x': synthetic.Node(sd=2.0, day=1.0, persist=0.8)}
+    df = synthetic.simulate(spec, 4000, per_day=2, seed=1)
+    d = df.groupby('day').x.first().to_numpy()
+    assert d.var() == pytest.approx(4.0, rel=0.1) and np.corrcoef(d[1:], d[:-1])[0, 1] == pytest.approx(0.8, abs=0.03)
+    same = synthetic.simulate({'x': synthetic.Node(sd=2.0, day=1.0)}, 50, seed=2).x
+    assert np.allclose(same, synthetic.simulate({'x': synthetic.Node(sd=2.0, day=1.0, persist=0.0)}, 50, seed=2).x)
+
+
+def test_per_split_design_list_equals_fixed_design():
+    rng = np.random.default_rng(9)
+    g = np.repeat(np.arange(30), 10)
+    X, y = rng.normal(size=(300, 2)), rng.normal(size=300)
+    sp = splits.kfold(splits.assign_folds(g, 3))
+    assert np.allclose(scoring.crossfit(X, y, sp, g)[2], scoring.crossfit([X] * 3, y, sp, g)[2])
+    z9 = lambda r: scoring.gauss_ls(np.array([9.0]), np.zeros(1), np.ones(1), robust=r)[0]
+    assert z9((0.01, 4.0)) == pytest.approx(z9(True)) and z9((0.02, 4.0)) > z9(True)

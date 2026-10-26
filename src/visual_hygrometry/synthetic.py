@@ -1,8 +1,9 @@
 """Linear-Gaussian synthetic worlds with analytically known conditional mutual information.
 
 Conditional on local hour h every node is x_i = mean_i(h) + sum_j B_ij x_j + e_i, with exogenous noise e_i of SD `sd`.
-A share `day` of each noise variance is a per-day constant and the rest an AR(1) series within the day, so samples are
-dependent within days while every row keeps the same marginal covariance Sigma = A diag(sd^2) A^T, A = (I - B)^-1.
+A share `day` of each noise variance is a per-day level (optionally AR(1) across days, `persist`) and the rest an AR(1)
+series within the day, so samples are dependent within and across days while every row keeps the same marginal
+covariance Sigma = A diag(sd^2) A^T, A = (I - B)^-1.
 Any conditional mutual information given h and a subset of nodes is then exact:
 
     I(Y;X|G,h) = 0.5 [log|S_YG| + log|S_XG| - log|S_G| - log|S_XYG|].
@@ -21,6 +22,7 @@ class Node:
     mean: Callable | None = None                # deterministic function of local hour
     day: float = 0.0                            # share of noise variance constant within a day
     ar: float = 0.0                             # AR(1) coefficient of the within-day part, per sample step
+    persist: float = 0.0                        # AR(1) coefficient of the day-level part across consecutive days
 
 
 def _ar1(n_days, per_day, phi, rng):
@@ -38,7 +40,9 @@ def simulate(spec, n_days, per_day=48, hours=(6, 18), seed=0):
     day = np.repeat(np.arange(n_days), per_day)
     cols = {'day': day, 'hour': h}
     for k, n in spec.items():
-        e = np.sqrt(n.day) * rng.standard_normal(n_days)[day] + np.sqrt(1 - n.day) * _ar1(n_days, per_day, n.ar, rng)
+        u = rng.standard_normal(n_days)
+        for t in range(1, n_days * (n.persist > 0)): u[t] = n.persist * u[t - 1] + np.sqrt(1 - n.persist ** 2) * u[t]
+        e = np.sqrt(n.day) * u[day] + np.sqrt(1 - n.day) * _ar1(n_days, per_day, n.ar, rng)
         cols[k] = (n.mean(h) if n.mean else 0) + sum(c * cols[p] for p, c in n.parents.items()) + n.sd * e
     return pd.DataFrame(cols)
 

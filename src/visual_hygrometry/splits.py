@@ -43,6 +43,14 @@ def purge(train, test, start, end, embargo='0s'):
     return out
 
 
+def chrono(block, frac=0.6, gap=1):
+    """(fit, evaluate) masks: the earliest `frac` of the ordered blocks fit, `gap` blocks are purged, the rest evaluate."""
+    ub = np.unique(block)
+    k = int(round(frac * len(ub)))
+    if k < 1 or k + gap >= len(ub): raise ValueError('chronological split leaves no fit or no evaluation blocks')
+    return np.isin(block, ub[:k]), np.isin(block, ub[k + gap:])
+
+
 def kfold(fold, start=None, end=None, embargo='0s'):
     """(train, test) boolean masks per fold; purged when dependency intervals are given."""
     out = []

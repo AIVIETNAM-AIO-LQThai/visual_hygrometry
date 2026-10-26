@@ -33,34 +33,82 @@ def cluster_lower(d, groups, level=0.95):
     return m - stats.t.ppf(level, G - 1) * se
 
 
-def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, **kw):
-    """Day-block conditional permutation test of H0: V independent of D given C, refitting the joint model every draw.
+def donor_sampler(units, slot, strata=None):
+    """Draws a donor row for every row: whole units (days, weeks) are permuted, within strata if given, and each row
+    takes the donor unit's row with the nearest slot (exact on complete grids, nearest available time otherwise).
+    draw(rng) permutes units at random; draw(rng, shift=k) instead shifts the ordered units cyclically by k (within
+    each stratum), which keeps the serial dependence of the donated series intact."""
+    _, ui = np.unique(units, return_inverse=True)
+    rows = [np.flatnonzero(ui == j) for j in range(ui.max() + 1)]
+    rows = [r[np.argsort(slot[r], kind='stable')] for r in rows]
+    st = np.zeros(len(rows), int) if strata is None else np.unique([strata[r[0]] for r in rows], return_inverse=True)[1]
+    classes = [np.flatnonzero(st == c) for c in np.unique(st)]
 
-    V is split into a linear prediction from C (labels unused) and a residual. Residuals of whole groups are permuted,
-    rows being matched across groups by `slot` (e.g. time-of-day index), so V structure that depends only on slot or
-    is linear in C survives every draw while any link between the residual and D is broken. Validity needs the
-    residual blocks to be exchangeable under H0: V structure that is non-linear in C-variables other than slot is
-    *not* preserved and can make the test anti-conservative. Requires a complete group x slot grid.
-    keep: optional row mask; only those rows enter the statistic (same rows in every draw).
+    def draw(rng, shift=None):
+        perm = np.arange(len(rows))
+        for c in classes: perm[c] = rng.permutation(c) if shift is None else np.roll(c, -shift)
+        src = np.empty(len(slot), int)
+        for j, d in enumerate(perm):
+            rj, rd = rows[j], rows[d]
+            if len(rd) == 1:
+                src[rj] = rd[0]
+                continue
+            sj, sd = slot[rj], slot[rd]
+            k = np.clip(np.searchsorted(sd, sj), 1, len(sd) - 1)
+            src[rj] = rd[np.where(np.abs(sj - sd[k - 1]) <= np.abs(sd[k] - sj), k - 1, k)]
+        return src
+    return draw
+
+
+def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, **kw):
+    """Conditional permutation test of H0: V independent of D given C, refitting the joint model for every draw.
+
+    Null generator: V = (linear prediction from Cnull) + residual R; whole `units` (default: `groups`, e.g. days; pass
+    week ids for multi-day persistence) exchange their residuals, within `strata` if given (regimes, seasons), rows being
+    matched by nearest `slot` (time of day, or day-in-block * 24 + hour). Permuted residuals are re-projected on the
+    orthogonal complement of Cnull so every draw shares the observed in-sample V-Cnull projection. The generator uses
+    (C, V) of the analysis sample but never D; model fitting and scoring inside every draw follow the same train-only
+    rules as the observed statistic.
+    Validity needs residual units to be exchangeable under H0 (within strata). Structure of V that is non-linear in
+    Cnull, or dependence that outlasts a unit, is not preserved and can make the test anti-conservative.
+    shift_min: use the cyclic-shift null instead: every shift of the ordered units by k in [shift_min, G - shift_min]
+    is enumerated (n_perm is ignored). It preserves serial dependence across units exactly, so it is the null for
+    multi-day persistence; it assumes stationarity of the residual series (wrap-around joins its end to its start).
+    C: context design, or a list of per-split designs (then Cnull is required). keep: rows entering the statistic.
     Returns (observed contrast, p-value, null contrasts).
     """
-    _, gi = np.unique(groups, return_inverse=True)
-    _, si = np.unique(slot, return_inverse=True)
-    pos = np.full((gi.max() + 1, si.max() + 1), -1)
-    pos[gi, si] = np.arange(len(gi))
-    if (pos < 0).any(): raise ValueError('perm_test needs every group to have every slot')
-    m, s = _standardise(C, slice(None))
-    Z = np.c_[np.ones(len(C)), (C - m) / s]
+    if Cnull is None: Cnull = C
+    m, s = _standardise(Cnull, slice(None))
+    Z = np.c_[np.ones(len(Cnull)), (Cnull - m) / s]
     orth = lambda A: A - Z @ np.linalg.lstsq(Z, A, rcond=None)[0]
     R = orth(V)
     Vhat = V - R
+    cat = lambda Vx: [np.c_[c, Vx] for c in C] if isinstance(C, list) else np.c_[C, Vx]
     ls_c = crossfit(C, y, splits, groups, **kw)[2]
     rows = np.ones(len(y), bool) if keep is None else keep
-    stat = lambda Vx: np.nanmean((crossfit(np.c_[C, Vx], y, splits, groups, **kw)[2] - ls_c)[rows])
-    obs, rng = stat(V), np.random.default_rng(seed)
-    # permuted residuals are re-projected so every draw shares the observed in-sample V-C projection exactly
-    null = np.array([stat(Vhat + orth(R[pos[rng.permutation(pos.shape[0])][gi, si]])) for _ in range(n_perm)])
+    stat = lambda Vx: np.nanmean((crossfit(cat(Vx), y, splits, groups, **kw)[2] - ls_c)[rows])
+    draw, rng = donor_sampler(groups if units is None else units, np.asarray(slot, float), strata), np.random.default_rng(seed)
+    obs = stat(V)
+    G = len(np.unique(groups if units is None else units))
+    shifts = [None] * n_perm if shift_min is None else range(shift_min, G - shift_min + 1)
+    null = np.array([stat(Vhat + orth(R[draw(rng, k)])) for k in shifts])
+    n_perm = len(null)
     return obs, (1 + np.sum(null >= obs)) / (1 + n_perm), null
+
+
+def hac_interval(d, groups, level=0.95, lag=None):
+    """Interval for the mean of row scores from the series of group (day) means in group order, with a Newey-West
+    (Bartlett) long-run variance; lag defaults to floor(4 (G/100)^(2/9)). For serially dependent groups."""
+    ug, inv = np.unique(groups, return_inverse=True)
+    s, n = np.bincount(inv, weights=d), np.bincount(inv)
+    m = s.sum() / n.sum()
+    u = (s - m * n) / n.mean()
+    G = len(u)
+    L = int(4 * (G / 100) ** (2 / 9)) if lag is None else lag
+    lrv = u @ u / G + 2 * sum((1 - j / (L + 1)) * (u[j:] @ u[:-j]) / G for j in range(1, L + 1))
+    se = np.sqrt(max(lrv, 0) / G)
+    q = stats.t.ppf(0.5 + level / 2, G - 1)
+    return m - q * se, m + q * se
 
 
 def boost(): return HistGradientBoostingRegressor(max_iter=100, learning_rate=0.1)
@@ -74,6 +122,20 @@ def project(C, V, groups, inner=5):
     """
     cv = list(GroupKFold(inner).split(C, groups=groups))
     return np.column_stack([cross_val_predict(boost(), C, v, cv=cv) for v in np.asarray(V, float).T])
+
+
+def project_splits(C, V, splits, groups, inner=5):
+    """Train-only E[V | C] for every split: a full-length array per split whose training rows hold out-of-fold
+    predictions within the training groups and whose test rows are predicted by a model fitted on all training rows.
+    Test (and any other) rows never enter the projection used for that split."""
+    V = np.asarray(V, float)
+    out = []
+    for tr, te in splits:
+        P = np.full(V.shape, np.nan)
+        P[tr] = project(C[tr], V[tr], groups[tr], inner)
+        P[te] = np.column_stack([boost().fit(C[tr], v[tr]).predict(C[te]) for v in V.T])
+        out.append(P)
+    return out
 
 
 def adequacy(C, y, splits, groups, raw, Vhat=None, level=0.95, ls_flex=None):

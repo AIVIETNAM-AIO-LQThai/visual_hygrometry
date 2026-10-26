@@ -78,3 +78,11 @@ def test_spline_basis_is_fixed_and_partitions_unity():
     b = data.spline(pd.Series([3.0, 17.5, 39.0, -100.0, 250.0]), knots, 'temp_spl')
     assert np.allclose(a.to_numpy(), b.to_numpy()[:3])  # no dependence on the other rows
     assert np.allclose(a.sum(axis=1), 1) and list(a)[0] == 'temp_spl0' and a.shape[1] == len(knots) + 2
+
+
+def test_chrono_split_orders_and_purges():
+    b = np.repeat(np.arange(10), 3)
+    fit, ev = splits.chrono(b, frac=0.6, gap=1)
+    assert set(b[fit]) == set(range(6)) and set(b[ev]) == {7, 8, 9} and not (fit & ev).any()
+    with pytest.raises(ValueError):
+        splits.chrono(b, frac=0.95, gap=1)

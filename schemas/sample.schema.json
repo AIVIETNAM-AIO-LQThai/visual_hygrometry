@@ -51,6 +51,8 @@
     "^temp_hist_": {"type": "number", "x-role": "temp_hist", "x-unit": "degC", "x-derived-from": ["temp_cond_c"], "description": "Causal statistics of temp_cond_c over windows ending at time_utc."},
     "^temp_spl[0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["temp_cond_c"], "description": "Fixed-knot cubic B-spline basis of temp_cond_c (data.spline)."},
     "^hourxtemp_[sc][0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["hour_local", "temp_cond_c"], "description": "Products of the hour Fourier basis with temp_cond_c."},
+    "^doy_spl[0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["doy"], "description": "Fixed-knot cubic B-spline basis of day of year (seasonal context)."},
+    "^visx_": {"type": "number", "x-role": "visual", "x-derived-from": ["frame_ids", "temp_cond_c"], "description": "Products of an image feature with context (lets the visual coefficient vary with T); joint-model side only."},
     "^ctxproj_": {"type": "number", "x-role": "ctx_proj", "x-derived-from": ["frame_ids", "hour_local", "temp_cond_c"], "description": "Cross-fitted E[visual feature | context] (inference.project) built from the context columns of the contrast it enters; SCI context side only."}
   }
 }
