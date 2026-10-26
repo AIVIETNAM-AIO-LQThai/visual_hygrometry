@@ -15,6 +15,7 @@ whose estimand is I(B;V|C) <= I(D;V|C) for the binned target B).
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import linalg
 from scipy.optimize import minimize, minimize_scalar
 from scipy.special import log_ndtr, ndtr
 from scipy.stats import cauchy, gaussian_kde, norm
@@ -77,14 +78,35 @@ def _standardise(X, rows, ctx_cols=0, ctx_pen=1.0):
 def ridge(alpha=1.0): return make_pipeline(StandardScaler(), Ridge(alpha=alpha))
 
 
+def _svd(Z):
+    """Thin SVD; LAPACK's divide-and-conquer driver can fail to converge on exactly rank-deficient designs (e.g. a
+    seasonal basis column held constant by clamping), so the slower QR-iteration driver is used as fallback."""
+    try: return np.linalg.svd(Z, full_matrices=False)
+    except np.linalg.LinAlgError: return linalg.svd(Z, full_matrices=False, lapack_driver='gesvd')
+
+
 def ridge_oof(X, y, cv, alphas=ALPHAS, **pen):
     """Out-of-fold predictions of standardised ridge for every alpha, shape (n, len(alphas)); one SVD per fold."""
     P = np.empty((len(y), len(alphas)))
     for tr, te in cv:
         m, s = _standardise(X, tr, **pen)
-        U, sv, Vt = np.linalg.svd((X[tr] - m) / s, full_matrices=False)
+        U, sv, Vt = _svd((X[tr] - m) / s)
         P[te] = y[tr].mean() + ((X[te] - m) / s) @ Vt.T @ (sv / (sv ** 2 + alphas[:, None]) * (U.T @ (y[tr] - y[tr].mean()))).T
     return P
+
+
+def ridge_fit(X, y, tr, groups, inner=5, **pen):
+    """The default `crossfit` mean model fitted on training rows `tr`, exposed for diagnostics: grouped-CV penalty,
+    standardisation, standardised coefficients and the out-of-fold residual SD (the homoscedastic predictive SD).
+    predict(X) reproduces crossfit's held-out means."""
+    cv = list(GroupKFold(inner).split(X[tr], groups=groups[tr]))
+    P = ridge_oof(X[tr], y[tr], cv, **pen)
+    k = int(np.argmin(((y[tr, None] - P) ** 2).mean(0)))
+    m, s = _standardise(X, tr, **pen)
+    Z = (X[tr] - m) / s
+    w = np.linalg.solve(Z.T @ Z + ALPHAS[k] * np.eye(Z.shape[1]), Z.T @ (y[tr] - y[tr].mean()))
+    return dict(alpha=ALPHAS[k], intercept=y[tr].mean(), coef=w, mean=m, scale=s, sd=np.sqrt(np.mean((y[tr] - P[:, k]) ** 2)),
+                predict=lambda Xn: y[tr].mean() + ((Xn - m) / s) @ w)
 
 
 def _ridge_predict(X, y, tr, te, alpha, **pen):

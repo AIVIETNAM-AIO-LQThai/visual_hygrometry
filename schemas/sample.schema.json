@@ -25,6 +25,7 @@
     "wind_ms": {"type": "number", "minimum": 0, "x-role": "met", "x-unit": "m s-1"},
     "rain_mm": {"type": "number", "minimum": 0, "x-role": "met", "x-unit": "mm", "description": "Accumulation over the sample window."},
     "sw_down_wm2": {"type": "number", "minimum": -10, "x-role": "met", "x-unit": "W m-2"},
+    "clearsky_k": {"type": "number", "minimum": 0, "x-role": "illum", "x-derived-from": ["sw_down_wm2", "time_utc"], "description": "Clear-sky index: incoming shortwave over a clear-sky model at the solar geometry of time_utc (cloudiness/illumination state). Context of E2_illum only."},
     "pressure_hpa": {"type": "number", "minimum": 500, "maximum": 1100, "x-role": "met", "x-unit": "hPa"},
 
     "pm_dry_ugm3": {"type": "number", "minimum": 0, "x-role": "aerosol_dry", "x-unit": "ug m-3", "description": "PM measured after a verified dryer (inlet RH logged). Diagnostic E3 anchor only."},
@@ -52,6 +53,11 @@
     "^temp_spl[0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["temp_cond_c"], "description": "Fixed-knot cubic B-spline basis of temp_cond_c (data.spline)."},
     "^hourxtemp_[sc][0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["hour_local", "temp_cond_c"], "description": "Products of the hour Fourier basis with temp_cond_c."},
     "^doy_spl[0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["doy"], "description": "Fixed-knot cubic B-spline basis of day of year (seasonal context)."},
+    "^doy_fspl[0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["doy"], "description": "Finer fixed-knot day-of-year spline (sharper seasonal transitions; worlds.add_context_levels)."},
+    "^doyxtemp_[0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["doy", "temp_cond_c"], "description": "Day-of-year spline basis times temp_cond_c (season-dependent T effect; worlds.add_context_levels)."},
+    "^hourxtspl_[sc][0-9]+_[0-9]+$": {"type": "number", "x-role": "temp_cond", "x-derived-from": ["hour_local", "temp_cond_c"], "description": "Hour Fourier basis times T spline basis (tensor product; worlds.add_context_levels)."},
+    "^hourxdoy_[sc][0-9]+_[0-9]+$": {"type": "number", "x-role": "clock", "x-derived-from": ["hour_local", "doy"], "description": "Hour Fourier basis times day-of-year spline (diurnal cycle changing over the season; worlds.add_context_levels, level L4)."},
+    "^illum_spl[0-9]+$": {"type": "number", "x-role": "illum", "x-derived-from": ["clearsky_k"], "description": "Fixed-knot cubic B-spline basis of the clear-sky index."},
     "^visx_": {"type": "number", "x-role": "visual", "x-derived-from": ["frame_ids", "temp_cond_c"], "description": "Products of an image feature with context (lets the visual coefficient vary with T); joint-model side only."},
     "^calib_": {"type": "number", "x-role": "calib", "x-derived-from": ["frame_ids"], "description": "Acquisition state of the frame (e.g. auto-exposure value). Never a feature; only the visual side of the acquisition-only control setting."},
     "^ctxproj_": {"type": "number", "x-role": "ctx_proj", "x-derived-from": ["frame_ids", "hour_local", "temp_cond_c"], "description": "Cross-fitted E[visual feature | context] (inference.project) built from the context columns of the contrast it enters; SCI context side only."}

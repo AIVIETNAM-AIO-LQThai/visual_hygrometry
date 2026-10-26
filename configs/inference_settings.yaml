@@ -20,12 +20,16 @@ settings:
 # Scientific information contrasts q(D|V,C) vs q(D|C). Both models receive identical context columns;
 # the joint model adds visual columns only.
 # ctx_proj: cross-fitted projection of visual features on that contrast's own context (never on anything else).
+# ctx_proj is kept only to reproduce the declared notebook 10 analysis and its diagnostics; the primary contrast from notebook 11 on has no visual-derived context (review 4).
 sci:
   e1: {context: [clock, ctx_proj], visual: [visual, acq]}
   e2: {context: [clock, temp_cond, temp_hist, ctx_proj], visual: [visual, acq]}
   e3: {context: [clock, temp_cond, temp_hist, aerosol_dry, ctx_proj], visual: [visual, acq]}
   # negative control: acquisition state (auto-exposure) in place of image features; diagnostic only, never a product
   e2_acq_control: {context: [clock, temp_cond, temp_hist, ctx_proj], visual: [calib]}
+  # secondary estimand E2_illum = I(D; V | C, K): illumination state K (clear-sky index) added to C; a different question from E2
+  e2_illum: {context: [clock, temp_cond, temp_hist, illum], visual: [visual, acq]}
+  e2_illum_acq_control: {context: [clock, temp_cond, temp_hist, illum], visual: [calib]}
 sci_targets: [d_ref_k, rh_ref_pct, td_ref_c]  # td_ref_c: information-equivalent to d_ref_k at fixed conditioning temperature
 
 # Single-feature correlation-ratio audit (eta^2 of the target across quantile bins of the feature).

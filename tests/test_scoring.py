@@ -181,3 +181,16 @@ def test_per_split_design_list_equals_fixed_design():
     assert np.allclose(scoring.crossfit(X, y, sp, g)[2], scoring.crossfit([X] * 3, y, sp, g)[2])
     z9 = lambda r: scoring.gauss_ls(np.array([9.0]), np.zeros(1), np.ones(1), robust=r)[0]
     assert z9((0.01, 4.0)) == pytest.approx(z9(True)) and z9((0.02, 4.0)) > z9(True)
+
+
+def test_ridge_fit_reproduces_crossfit_means_and_sd():
+    from visual_hygrometry import splits
+    rng = np.random.default_rng(5)
+    g = np.repeat(np.arange(30), 8)
+    X = rng.normal(size=(len(g), 4))
+    y = X @ [1.0, -.5, 0, 2] + rng.normal(size=len(g))
+    sp = splits.kfold(splits.assign_folds(g, 3))
+    mu, sd, _ = scoring.crossfit(X, y, sp, g)
+    for tr, te in sp:
+        f = scoring.ridge_fit(X, y, tr, g)
+        assert np.allclose(f['predict'](X[te]), mu[te]) and np.allclose(f['sd'], sd[te])

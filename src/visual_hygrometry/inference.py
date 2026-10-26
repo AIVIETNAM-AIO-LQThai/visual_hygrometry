@@ -6,7 +6,7 @@ That is an interval (`cluster_interval` on cross-fitted or frozen held-out score
 scientifically meaningful threshold is a third, separate comparison of the interval with that threshold.
 """
 import numpy as np
-from scipy import stats
+from scipy import linalg, stats
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import GroupKFold, cross_val_predict
 
@@ -72,7 +72,31 @@ def shift_configs(units, strata=None, shift_min=7):
     return ks
 
 
-def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, **kw):
+def select_capacity(levels, y, splits, groups, inner=5, **kw):
+    """Context design per split, chosen among nested `levels` (smallest first; each a full-length matrix or a list
+    with one per split, e.g. `worlds.split_levels`) by the grouped inner-CV log score of the context-only model on that
+    split's training rows. Visual columns and test-row labels are never read, so both models of a contrast receive the
+    same chosen design. Returns (designs, chosen level index)."""
+    out, chosen = [], []
+    for j, (tr, _) in enumerate(splits):
+        lv = [L[j] if isinstance(L, list) else L for L in levels]
+        idx = np.flatnonzero(tr)
+        cv = [(np.isin(np.arange(len(y)), idx[a]), np.isin(np.arange(len(y)), idx[b])) for a, b in GroupKFold(inner).split(idx, groups=groups[tr])]
+        k = min(inner, min(len(np.unique(groups[a])) for a, _ in cv))  # penalty folds inside each selection fold
+        score = [np.nanmean(crossfit(L, y, cv, groups, inner=k, **kw)[2][tr]) for L in lv]
+        chosen.append(int(np.argmax(score)))
+        out.append(lv[chosen[-1]])
+    return out, chosen
+
+
+def clip_to_training(V, splits, q=0.005):
+    """Per split, V with every column clipped to its training rows' [q, 1 - q] quantiles, so a fitted visual
+    coefficient is never extrapolated beyond the image range it was estimated on (part of the joint model)."""
+    V = np.asarray(V, float)
+    return [np.clip(V, *np.quantile(V[tr], [q, 1 - q], axis=0)) for tr, _ in splits]
+
+
+def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, clip=None, **kw):
     """Conditional permutation test of H0: V independent of D given C, refitting the joint model for every draw.
 
     Null generator: V = (linear prediction from Cnull) + residual R; whole `units` (default: `groups`, e.g. days; pass
@@ -87,15 +111,20 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     G units and no strata that is G - 2 shift_min + 1 nulls, so p >= 1 / (G - 2 shift_min + 2). It preserves serial dependence across units exactly, so it is the null for
     multi-day persistence; it assumes stationarity of the residual series (wrap-around joins its end to its start).
     C: context design, or a list of per-split designs (then Cnull is required). keep: rows entering the statistic.
+    clip: quantile q of `clip_to_training`, applied to the observed and to every null V alike.
     Returns (observed contrast, p-value, null contrasts).
     """
     if Cnull is None: Cnull = C
     m, s = _standardise(Cnull, slice(None))
     Z = np.c_[np.ones(len(Cnull)), (Cnull - m) / s]
-    orth = lambda A: A - Z @ np.linalg.lstsq(Z, A, rcond=None)[0]
+    orth = lambda A: A - Z @ _lstsq(Z, A)
     R = orth(V)
     Vhat = V - R
-    cat = lambda Vx: [np.c_[c, Vx] for c in C] if isinstance(C, list) else np.c_[C, Vx]
+    if clip is not None:
+        Cl = C if isinstance(C, list) else [C] * len(splits)
+        cat = lambda Vx: [np.c_[c, v] for c, v in zip(Cl, clip_to_training(Vx, splits, clip))]
+    else:
+        cat = lambda Vx: [np.c_[c, Vx] for c in C] if isinstance(C, list) else np.c_[C, Vx]
     ls_c = crossfit(C, y, splits, groups, **kw)[2]
     rows = np.ones(len(y), bool) if keep is None else keep
     stat = lambda Vx: np.nanmean((crossfit(cat(Vx), y, splits, groups, **kw)[2] - ls_c)[rows])
@@ -120,6 +149,13 @@ def hac_interval(d, groups, level=0.95, lag=None):
     se = np.sqrt(max(lrv, 0) / G)
     q = stats.t.ppf(0.5 + level / 2, G - 1)
     return m - q * se, m + q * se
+
+
+def _lstsq(Z, A):
+    """Least-squares coefficients; falls back to pivoted QR when the SVD-based driver fails on a rank-deficient Z
+    (the fitted projection Z @ coef is the same for every least-squares solution)."""
+    try: return np.linalg.lstsq(Z, A, rcond=None)[0]
+    except np.linalg.LinAlgError: return linalg.lstsq(Z, A, lapack_driver='gelsy')[0]
 
 
 def boost(): return HistGradientBoostingRegressor(max_iter=100, learning_rate=0.1)

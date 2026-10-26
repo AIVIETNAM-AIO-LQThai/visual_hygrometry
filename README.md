@@ -4,7 +4,7 @@ Can a fixed camera observe near-surface moisture, and how much does it see **bey
 
 The project treats this as an identifiability problem, not as image-to-humidity regression. The primary estimand is the conditional mutual information `E2 = I(D; V | hour, season, T)` between images `V` and the dew-point depression `D = T − Td`, estimated by the held-out log-score contrast of matched probabilistic models. Camera-only (CO), temperature-assisted (TA) and contextual (CTX) predictors are separate products with separate input contracts ([docs/research_scope.md](docs/research_scope.md)).
 
-## Current stage: exploratory M1 — NEON labels, real-image features, first visual comparisons
+## Current stage: exploratory M1 — projection-free inference redesign (review 4)
 
 | piece | where | status |
 |---|---|---|
@@ -21,7 +21,10 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | NEON label measurement model | [notebooks/08](notebooks/08_neon_label_measurement_model.ipynb), `neon.py` | passive shield verified; hybrid label `D_h = T_asp − Td`; high-RH stratum, no censoring (D-046) |
 | coverage, image set, features, dependence | [notebooks/09](notebooks/09_neon_coverage_features_dependence.ipynb), `features.py`, [manifest](data/manifests/phenocam_hourly_2023JJA.csv) | HARV + CPER JJA 2023, 2574 hourly frames verified; strong persistence at CPER |
 | exploratory visual comparison | [notebooks/10](notebooks/10_exploratory_visual_information.ipynb), [findings](docs/m1_exploratory_findings.md) | no claim; estimator unstable on real single-season data; visual projection reopened ([review](reviews/m1_exploratory_review.md)) |
-| field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft |
+| why the declared analysis failed | [notebooks/12](notebooks/12_declared_analysis_failure_diagnostics.ipynb) | HARV loss from one extrapolating seasonal basis column; declared estimates dominated by fold assignment |
+| projection-free inference, synthetic validation | [notebooks/11](notebooks/11_projection_free_inference.ipynb), [decision note](docs/m1_inference_redesign.md) | **fails 4 of 9 gates** (hour × season context, persistent-information intervals, AR 0.9); point estimate unbiased and stable ([review](reviews/m1_redesign_review.md)) |
+| multi-year NEON availability | [notebooks/13](notebooks/13_neon_multiyear_availability_audit.ipynb) | 2019–2023 published; camera epochs and label faults identified; nothing bulk-downloaded |
+| field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft 2, tiered (minimum / recommended / reference) |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
 Nothing here is evidence that RGB imagery carries moisture information. The estimator was validated on synthetic data with known truth only, and the first real-image comparison (notebook 10) supports no claim.
@@ -42,10 +45,10 @@ On Linux/macOS use `.venv/bin/python`. Notebooks use the environment's `python3`
 ```
 
 ```bash
-cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb 05_tail_robust_scoring.ipynb 06_permutation_null_and_chronological_gain.ipynb 07_neon_feasibility_HARV_2023-07.ipynb 08_neon_label_measurement_model.ipynb 09_neon_coverage_features_dependence.ipynb 10_exploratory_visual_information.ipynb
+cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb 05_tail_robust_scoring.ipynb 06_permutation_null_and_chronological_gain.ipynb 07_neon_feasibility_HARV_2023-07.ipynb 08_neon_label_measurement_model.ipynb 09_neon_coverage_features_dependence.ipynb 10_exploratory_visual_information.ipynb 11_projection_free_inference.ipynb 12_declared_analysis_failure_diagnostics.ipynb 13_neon_multiyear_availability_audit.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -61,7 +64,9 @@ notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 0
            05 tail-robust scoring (defensive Gaussian, common support) with a fresh validation suite,
            06 permutation null under persistence/regimes/seasons/missing frames, chronological gain,
            07 NEON feasibility (HARV, July 2023), 08 NEON label measurement model (HARV, CPER),
-           09 coverage / verified image set / features / temporal dependence, 10 exploratory visual comparison
+           09 coverage / verified image set / features / temporal dependence, 10 exploratory visual comparison,
+           11 projection-free inference with a new synthetic validation suite, 12 diagnostics of the notebook 10 failure,
+           13 multi-year NEON availability audit
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```

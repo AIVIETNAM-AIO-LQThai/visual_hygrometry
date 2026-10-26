@@ -60,3 +60,40 @@ def add_context_basis(df, knots):
     S = data.spline(df.temp_cond_c, knots, 'temp_spl')
     X = pd.DataFrame({f'hourxtemp_{c[5:]}': df[c] * (df.temp_cond_c - 20) for c in HOUR}, index=df.index)
     return pd.concat([df, S, X], axis=1), HOUR + list(S) + list(X)
+
+
+def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False):
+    """Nested E2 context bases of increasing capacity, all fixed in advance (no fitting, no visual input).
+
+    L1: hour Fourier basis (2 harmonics), T spline, T x hour basis, day-of-year spline (the notebook 10 context);
+    L2: L1 + third hour harmonic and its T product, T x day-of-year-spline products (season-dependent T effect) and a
+        finer day-of-year spline (`fine_doy_knots`, sharper seasonal transitions);
+    L3: L2 + tensor product of the 2-harmonic hour basis with the T spline (T shape varying with time of day);
+    L4 (only with hour_season=True): L3 + hour basis x day-of-year spline (diurnal cycle changing over the season).
+    df needs hour_local, temp_cond_c, doy and the HOUR columns. Returns (df, {level: columns}).
+    """
+    t = df.temp_cond_c - 20
+    h3 = data.fourier(df.hour_local, 24, 3, 'hour')[['hour_s3', 'hour_c3']]
+    S, Y, F = data.spline(df.temp_cond_c, knots, 'temp_spl'), data.spline(df.doy, doy_knots, 'doy_spl'), data.spline(df.doy, fine_doy_knots, 'doy_fspl')
+    X = pd.DataFrame({f'hourxtemp_{c[5:]}': (df[c] if c in HOUR else h3[c]) * t for c in HOUR + list(h3)}, index=df.index)
+    DT = Y.mul(t, axis=0).rename(columns=lambda c: f'doyxtemp_{c[7:]}')
+    TS = pd.DataFrame({f'hourxtspl_{c[5:]}_{s[8:]}': df[c] * S[s] for c in HOUR for s in S}, index=df.index)
+    L1 = HOUR + list(S) + list(X)[:len(HOUR)] + list(Y)
+    L2 = L1 + list(h3) + list(X)[len(HOUR):] + list(DT) + list(F)
+    HS = pd.DataFrame({f'hourxdoy_{c[5:]}_{y[7:]}': df[c] * Y[y] for c in HOUR for y in Y}, index=df.index) if hour_season else pd.DataFrame(index=df.index)
+    new = [h3, S, X, Y, DT, F, TS, HS]
+    df = df.drop(columns=[c for b in new for c in b if c in df])  # rebuilt, e.g. with a clamped day of year
+    lv = {'L1': L1, 'L2': L2, 'L3': L2 + list(TS)} | ({'L4': L2 + list(TS) + list(HS)} if hour_season else {})
+    return pd.concat([df] + new, axis=1), lv
+
+
+def split_levels(df, splits, knots, doy_knots, fine_doy_knots, extra=(), hour_season=False):
+    """Context levels for every split with day of year clamped to that split's training rows, so the seasonal bases
+    hold their last fitted value beyond the fitted record instead of extrapolating unsupported basis functions.
+    extra: further context columns of df (not day-of-year dependent) appended to every level.
+    Returns ({level: [matrix per split]}, {level: columns})."""
+    out = {}
+    for tr, _ in splits:
+        d, lv = add_context_levels(df.assign(doy=df.doy.clip(df.doy[tr].min(), df.doy[tr].max())), knots, doy_knots, fine_doy_knots, hour_season)
+        for k, c in lv.items(): out.setdefault(k, []).append(d[c + list(extra)].to_numpy())
+    return out, {k: c + list(extra) for k, c in lv.items()}

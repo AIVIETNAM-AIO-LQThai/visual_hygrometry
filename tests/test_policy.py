@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from visual_hygrometry import policy
@@ -132,3 +133,31 @@ def test_acquisition_state_only_in_the_acquisition_control(samples):
     for s in DEPLOY:
         with pytest.raises(PolicyError):
             select(df, s, cols=['vis_haze', 'calib_exposure'])
+
+
+def test_context_levels_are_nested_and_illumination_only_in_e2_illum():
+    from visual_hygrometry import data, worlds
+    df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 5, seed=0).assign(doy=lambda d: 170 + d.day, clearsky_k=0.7)
+    df, lv = worlds.add_context_levels(df, np.arange(-4, 45, 4.0), np.arange(140, 261, 15.0), np.arange(140, 261, 7.5))
+    assert set(lv['L1']) < set(lv['L2']) < set(lv['L3']) and len(set(lv['L3'])) == len(lv['L3'])
+    for level in ['e2', 'e2_illum']:
+        Xc, _, _, _ = select_sci(df, level, lv['L3'], ['vis_moist'])
+        assert Xc.shape[1] == len(lv['L3'])
+    df = pd.concat([df, data.spline(df.clearsky_k, np.linspace(0, 1.2, 7), 'illum_spl')], axis=1)
+    ill = [c for c in df if c.startswith('illum_spl')]
+    select_sci(df, 'e2_illum', lv['L1'] + ['clearsky_k'] + ill, ['vis_moist'])
+    with pytest.raises(PolicyError):
+        select_sci(df, 'e2', lv['L1'] + ill, ['vis_moist'])
+    _, Xvc, _, _ = select_sci(df.assign(calib_exposure=1.0), 'e2_illum_acq_control', lv['L1'] + ill, ['calib_exposure'])
+    assert Xvc.columns[-1] == 'calib_exposure'
+
+
+def test_hour_season_level_is_optional_registered_and_nested():
+    from visual_hygrometry import worlds
+    df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 5, seed=0).assign(doy=lambda d: 170 + d.day)
+    args = (np.arange(-4, 45, 4.0), np.arange(140, 261, 15.0), np.arange(140, 261, 7.5))
+    assert 'L4' not in worlds.add_context_levels(df, *args)[1]
+    df4, lv = worlds.add_context_levels(df, *args, hour_season=True)
+    assert set(lv['L3']) < set(lv['L4']) and any(c.startswith('hourxdoy_') for c in lv['L4'])
+    Xc, _, _, _ = select_sci(df4, 'e2', lv['L4'], ['vis_moist'])
+    assert Xc.shape[1] == len(lv['L4'])
