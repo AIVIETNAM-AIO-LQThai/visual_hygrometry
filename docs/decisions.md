@@ -54,10 +54,25 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-037 | G interval: chronological hold-out (60 % / 2-day purge / 40 %), week-cluster t. Newey–West and day clusters rejected for ≤ 30 evaluation days. | adopted for exploratory M1 | nb06 validation V3/V4 |
 | D-038 | Support box q = 0.5 % kept; excluded share and support-dependent truth reported; never q ≥ 2.5 % without a sensitivity check. | adopted | nb06 §4 |
 | D-039 | Robust mixture 1 % Cauchy(μ, 4σ) kept; not influential once support is restricted; log loss unbounded. | adopted | nb06 §4 |
-| D-040 | NEON label: probe-temperature D vs hybrid D (aspirated T, probe dew point). | **open, review requested** | nb07: probe +0.55 K by day, up to +2 K |
-| D-041 | Near-saturation censoring for HMP155 labels. | **open, review requested** | nb07: no reading above 99.02 % RH; per-minute rule censors 5 minutes, specification rule 3.3 % |
+| D-040 | NEON label: probe-temperature D vs hybrid D (aspirated T, probe dew point). | superseded by D-046 | nb07: probe +0.55 K by day, up to +2 K |
+| D-041 | Near-saturation censoring for HMP155 labels. | superseded by D-046 | nb07: no reading above 99.02 % RH; per-minute rule censors 5 minutes, specification rule 3.3 % |
 | D-042 | PhenoCam overlay mask (three fixed rectangles, 3.1 %) applied before any visual feature; exposure and camera temperature never features. | adopted | nb07 §6–8 |
 | D-043 | NEON PhenoCam imagery (auto-haze, AGC, JPEG) is not used for extinction-mechanism claims. | adopted | nb07 `.meta` |
+
+## After independent review 3 (see [m1_exploratory_findings.md](m1_exploratory_findings.md))
+
+| id | decision | status | evidence / revisit when |
+|---|---|---|---|
+| D-044 | Cyclic-shift null enumerates `shift_configs`: one shift k for every stratum, k ∈ [shift_min, n_min − shift_min]; the number of shifts and the attainable minimum p are reported with every p-value. | adopted | review 3 item 4; test_shift_configs_count_min_p_and_strata (31 days, shift_min 7: 18 shifts, min p 0.0526) |
+| D-045 | NEON HMP155 is in a passive shield (ATBD NEON.DOC.000851 rev A and C, §6.1.1.2); no radiation or wind QC flag exists in the published RH product. | verified | nb08 §1 |
+| D-046 | NEON measurement model: label `D_h = T_asp − Td_probe`; `D_probe` mandatory sensitivity; minutes with D_h < −2σ(D_h) excluded as inconsistent; RH_implied ≥ 98.3 % a sensitivity stratum, not censored. No censored likelihood for NEON labels. | adopted for exploratory M1 (supersedes D-040, D-041) | nb08 §2–5 |
+| D-047 | `td_ref_c` is a permitted SCI target. At fixed conditioning temperature it carries the same information as `d_ref_k`, and it is used as a sensitivity in which T_asp enters only the context. | adopted | nb10 §2 |
+| D-048 | Acquisition-only control: the `calib` role (e.g. `calib_exposure`) may enter the visual side only at SCI level `e2_acq_control`; it is never a visual feature of `e2`. | adopted | test_acquisition_state_only_in_the_acquisition_control; nb10 §2 |
+| D-049 | Predefined visual features: nine overlay-masked scene statistics in fixed image bands (`features.py`). Both sky features are dropped for a site when the median clipped-sky share exceeds 0.2 (image QC only, declared before any label–feature relation was examined). | adopted for exploratory M1 | nb09 §4 |
+| D-050 | Contrasting site CPER (semi-arid grassland, UTC−7) alongside HARV, June–August 2023, hourly frames 06–19 LST. | adopted for exploratory M1 | nb09 |
+| D-051 | Declared exploratory comparison (nb10 §1–2): no moisture-information claim. Shift test p = 0.90 (HARV) and 0.59 (CPER); chronological G is unstable under nuisance choices, from −9.7 to +1.5 nats at HARV. | recorded | nb10 |
+| D-052 | Train-only visual projection E[V \| hour, T, doy] (D-035) on single-season real data: its inner day folds interpolate across neighbouring days, creating a fit/evaluation asymmetry (CPER R² 0.63 vs 0.00) and a contaminated null (median +0.14 nats). | **reopened, review requested** | nb10 §3; reviews/m1_exploratory_review.md |
+| D-053 | Illumination and acquisition state as a pathway outside C: auto-exposure alone passes the shift test at both sites. | **open, review requested** | nb09 §4, nb10 §2 |
 
 ## Open questions carried to M1
 

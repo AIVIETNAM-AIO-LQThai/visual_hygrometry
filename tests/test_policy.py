@@ -121,3 +121,14 @@ def test_flexible_context_basis_is_registered_for_e2_only():
     assert Xc.shape[1] == len(ctx) == 4 + 15 + 4
     with pytest.raises(PolicyError):
         select_sci(df, 'e1', ctx, ['vis_moist'])
+
+
+def test_acquisition_state_only_in_the_acquisition_control(samples):
+    df = samples.assign(calib_exposure=np.random.default_rng(4).normal(size=len(samples)))
+    _, Xvc, _, _ = select_sci(df, 'e2_acq_control', ctx=['hour_local', 'temp_cond_c'], vis=['calib_exposure'])
+    assert Xvc.columns[-1] == 'calib_exposure'
+    with pytest.raises(PolicyError):
+        select_sci(df, 'e2', ctx=['hour_local', 'temp_cond_c'], vis=['calib_exposure'])
+    for s in DEPLOY:
+        with pytest.raises(PolicyError):
+            select(df, s, cols=['vis_haze', 'calib_exposure'])

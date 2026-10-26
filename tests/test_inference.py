@@ -118,3 +118,13 @@ def test_hac_interval_widens_under_serial_dependence():
     lo, hi = inference.hac_interval(d, g, lag=12)
     clo, chi = inference.cluster_interval(d, g)
     assert hi - lo > 2.5 * (chi - clo)
+
+
+def test_shift_configs_count_min_p_and_strata():
+    days = np.repeat(np.arange(31), 4)
+    ks = inference.shift_configs(days, shift_min=7)
+    assert len(ks) == 18 and 1 / (len(ks) + 1) == pytest.approx(0.0526, abs=1e-4)  # one month cannot reach p <= 0.05
+    strata = (np.arange(90) >= 40).astype(int)
+    assert inference.shift_configs(np.arange(90), strata, 7) == list(range(7, 34))  # shortest stratum: 40 units
+    with pytest.raises(ValueError, match='no cyclic shift'):
+        inference.shift_configs(np.arange(30), (np.arange(30) >= 20).astype(int), 7)

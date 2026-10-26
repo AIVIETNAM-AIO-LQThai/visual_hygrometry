@@ -60,6 +60,18 @@ def donor_sampler(units, slot, strata=None):
     return draw
 
 
+def shift_configs(units, strata=None, shift_min=7):
+    """Cyclic shifts k used by the shift null: one k applied to every stratum, k in [shift_min, n_min - shift_min] with
+    n_min the shortest stratum (in units). Every configuration is distinct, none is the identity, and each stratum is
+    shifted by at least shift_min units. The smallest attainable p-value is 1 / (len + 1)."""
+    u = np.asarray(units)
+    if strata is None: n_min = len(np.unique(u))
+    else: n_min = min(len(np.unique(u[np.asarray(strata) == c])) for c in np.unique(strata))
+    ks = list(range(shift_min, n_min - shift_min + 1))
+    if not ks: raise ValueError(f'shortest stratum has {n_min} units: no cyclic shift of at least {shift_min} is available')
+    return ks
+
+
 def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, **kw):
     """Conditional permutation test of H0: V independent of D given C, refitting the joint model for every draw.
 
@@ -71,8 +83,8 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     rules as the observed statistic.
     Validity needs residual units to be exchangeable under H0 (within strata). Structure of V that is non-linear in
     Cnull, or dependence that outlasts a unit, is not preserved and can make the test anti-conservative.
-    shift_min: use the cyclic-shift null instead: every shift of the ordered units by k in [shift_min, G - shift_min]
-    is enumerated (n_perm is ignored). It preserves serial dependence across units exactly, so it is the null for
+    shift_min: use the cyclic-shift null instead: every shift in `shift_configs` is enumerated (n_perm is ignored); with
+    G units and no strata that is G - 2 shift_min + 1 nulls, so p >= 1 / (G - 2 shift_min + 2). It preserves serial dependence across units exactly, so it is the null for
     multi-day persistence; it assumes stationarity of the residual series (wrap-around joins its end to its start).
     C: context design, or a list of per-split designs (then Cnull is required). keep: rows entering the statistic.
     Returns (observed contrast, p-value, null contrasts).
@@ -89,8 +101,7 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     stat = lambda Vx: np.nanmean((crossfit(cat(Vx), y, splits, groups, **kw)[2] - ls_c)[rows])
     draw, rng = donor_sampler(groups if units is None else units, np.asarray(slot, float), strata), np.random.default_rng(seed)
     obs = stat(V)
-    G = len(np.unique(groups if units is None else units))
-    shifts = [None] * n_perm if shift_min is None else range(shift_min, G - shift_min + 1)
+    shifts = [None] * n_perm if shift_min is None else shift_configs(groups if units is None else units, strata, shift_min)
     null = np.array([stat(Vhat + orth(R[draw(rng, k)])) for k in shifts])
     n_perm = len(null)
     return obs, (1 + np.sum(null >= obs)) / (1 + n_perm), null

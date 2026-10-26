@@ -108,7 +108,8 @@ def select_sci(df, level, ctx, vis, target='d_ref_k', allow_shared_sensor=False,
     """(Xc, Xvc, y, info) for the matched contrast q(D|V,C) vs q(D|C): identical context columns, visual columns added."""
     cfg, where = SETTINGS['sci'][level], f'sci_{level}'
     ctx, vis = list(ctx), list(vis)
-    bad = CONTRACT.violations(ctx, set(cfg['context']) - NEVER) | CONTRACT.violations(vis, set(cfg['visual']) - NEVER)
+    allowed_vis = set(cfg['visual']) - (NEVER - {'calib'} if level == 'e2_acq_control' else NEVER)  # calib only in the acquisition-only control
+    bad = CONTRACT.violations(ctx, set(cfg['context']) - NEVER) | CONTRACT.violations(vis, allowed_vis)
     if bad: raise PolicyError(f'{where}: ' + '; '.join(f'{c}: {r}' for c, r in bad.items()))
-    info = _check(df, ctx + vis, set(cfg['context'] + cfg['visual']) - NEVER, target, SETTINGS['sci_targets'], allow_shared_sensor, audit or SETTINGS['label_equivalence_eta2'], where)
+    info = _check(df, ctx + vis, (set(cfg['context']) - NEVER) | allowed_vis, target, SETTINGS['sci_targets'], allow_shared_sensor, audit or SETTINGS['label_equivalence_eta2'], where)
     return df[ctx], df[ctx + vis], df[target], info | {'setting': where, 'ctx': ctx, 'vis': vis}
