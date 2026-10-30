@@ -62,14 +62,17 @@ def add_context_basis(df, knots):
     return pd.concat([df, S, X], axis=1), HOUR + list(S) + list(X)
 
 
-def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False):
+def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False, solar=False):
     """Nested E2 context bases of increasing capacity, all fixed in advance (no fitting, no visual input).
 
     L1: hour Fourier basis (2 harmonics), T spline, T x hour basis, day-of-year spline (the notebook 10 context);
     L2: L1 + third hour harmonic and its T product, T x day-of-year-spline products (season-dependent T effect) and a
         finer day-of-year spline (`fine_doy_knots`, sharper seasonal transitions);
     L3: L2 + tensor product of the 2-harmonic hour basis with the T spline (T shape varying with time of day);
-    L4 (only with hour_season=True): L3 + hour basis x day-of-year spline (diurnal cycle changing over the season).
+    L4 (only with hour_season=True): L3 + hour basis x day-of-year spline (diurnal cycle changing over the season);
+    S (only with solar=True; needs the data.solar columns): L3 + solar-elevation spline, elevation spline x T,
+        hour-angle Fourier basis x declination and a Fourier basis of the daylight fraction (sunrise-to-sunset time);
+    S4 (solar and hour_season): S + the L4 hour x season products.
     df needs hour_local, temp_cond_c, doy and the HOUR columns. Returns (df, {level: columns}).
     """
     t = df.temp_cond_c - 20
@@ -81,19 +84,33 @@ def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False):
     L1 = HOUR + list(S) + list(X)[:len(HOUR)] + list(Y)
     L2 = L1 + list(h3) + list(X)[len(HOUR):] + list(DT) + list(F)
     HS = pd.DataFrame({f'hourxdoy_{c[5:]}_{y[7:]}': df[c] * Y[y] for c in HOUR for y in Y}, index=df.index) if hour_season else pd.DataFrame(index=df.index)
-    new = [h3, S, X, Y, DT, F, TS, HS]
+    SO = _solar_basis(df, t) if solar else pd.DataFrame(index=df.index)
+    new = [h3, S, X, Y, DT, F, TS, HS, SO]
     df = df.drop(columns=[c for b in new for c in b if c in df])  # rebuilt, e.g. with a clamped day of year
-    lv = {'L1': L1, 'L2': L2, 'L3': L2 + list(TS)} | ({'L4': L2 + list(TS) + list(HS)} if hour_season else {})
+    L3 = L2 + list(TS)
+    lv = {'L1': L1, 'L2': L2, 'L3': L3} | ({'L4': L3 + list(HS)} if hour_season else {}) | ({'S': L3 + list(SO)} if solar else {}) \
+        | ({'S4': L3 + list(SO) + list(HS)} if solar and hour_season else {})
     return pd.concat([df] + new, axis=1), lv
 
 
-def split_levels(df, splits, knots, doy_knots, fine_doy_knots, extra=(), hour_season=False):
+SUN_KNOTS = np.arange(-10, 71, 10.0)  # solar elevation, degrees
+
+
+def _solar_basis(df, t):
+    """Solar context terms from the data.solar columns of df (computed from the true date, so day-of-year clamping
+    never alters them); t = temp_cond_c - 20."""
+    E = data.spline(df.solar_elev_deg, SUN_KNOTS, 'sun_spl')
+    H = data.fourier(df.solar_hour_angle_deg, 360, 2, 'ha').mul(df.solar_decl_deg / 23.44, axis=0).rename(columns=lambda c: f'haxdecl_{c[3:]}')
+    return pd.concat([E, E.mul(t, axis=0).rename(columns=lambda c: f'sunxtemp_{c[7:]}'), H, data.fourier(df.solar_dayfrac, 1, 2, 'dayfrac')], axis=1)
+
+
+def split_levels(df, splits, knots, doy_knots, fine_doy_knots, extra=(), hour_season=False, solar=False):
     """Context levels for every split with day of year clamped to that split's training rows, so the seasonal bases
     hold their last fitted value beyond the fitted record instead of extrapolating unsupported basis functions.
     extra: further context columns of df (not day-of-year dependent) appended to every level.
     Returns ({level: [matrix per split]}, {level: columns})."""
     out = {}
     for tr, _ in splits:
-        d, lv = add_context_levels(df.assign(doy=df.doy.clip(df.doy[tr].min(), df.doy[tr].max())), knots, doy_knots, fine_doy_knots, hour_season)
+        d, lv = add_context_levels(df.assign(doy=df.doy.clip(df.doy[tr].min(), df.doy[tr].max())), knots, doy_knots, fine_doy_knots, hour_season, solar)
         for k, c in lv.items(): out.setdefault(k, []).append(d[c + list(extra)].to_numpy())
     return out, {k: c + list(extra) for k, c in lv.items()}

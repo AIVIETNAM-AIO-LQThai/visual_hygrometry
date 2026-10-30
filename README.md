@@ -24,7 +24,10 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | why the declared analysis failed | [notebooks/12](notebooks/12_declared_analysis_failure_diagnostics.ipynb) | HARV loss from one extrapolating seasonal basis column; declared estimates dominated by fold assignment |
 | projection-free inference, synthetic validation | [notebooks/11](notebooks/11_projection_free_inference.ipynb), [decision note](docs/m1_inference_redesign.md) | **fails 4 of 9 gates** (hour × season context, persistent-information intervals, AR 0.9); point estimate unbiased and stable ([review](reviews/m1_redesign_review.md)) |
 | multi-year NEON availability | [notebooks/13](notebooks/13_neon_multiyear_availability_audit.ipynb) | 2019–2023 published; camera epochs and label faults identified; nothing bulk-downloaded |
-| field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft 2, tiered (minimum / recommended / reference) |
+| solar context, dependence-aware null, adequacy auditors | [notebooks/14](notebooks/14_solar_context_and_dependence_aware_inference.ipynb), `suite.py`, [statistical note](docs/m1_statistical_note.md) | development only: CRT null controls Type I in every development world, the shift test does not under persistence; intervals under-cover |
+| CPER 2020–2023 acquisition and QC | [notebooks/15](notebooks/15_cper_2020_2023_acquisition_audit.ipynb), [plan](docs/cper_2020_2023_plan.md) | plan frozen; labels and camera state audited; imagery not downloaded |
+| fresh validation of the solar protocol | [notebooks/16](notebooks/16_fresh_validation_solar_protocol.ipynb) | **5 of 7 gates pass**: CRT Type I 0.02–0.08 in ten nulls, power ≥ 0.83, unbiased and stable estimates, repair diagnostic valid; season-cluster interval under-covers (0.71–0.91) and the context-only challenger fails ([review](reviews/m1_solar_protocol_review.md)) |
+| field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft 3: engineering pilot / research collection / reference instrumentation |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
 Nothing here is evidence that RGB imagery carries moisture information. The estimator was validated on synthetic data with known truth only, and the first real-image comparison (notebook 10) supports no claim.
@@ -45,10 +48,14 @@ On Linux/macOS use `.venv/bin/python`. Notebooks use the environment's `python3`
 ```
 
 ```bash
-cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb 05_tail_robust_scoring.ipynb 06_permutation_null_and_chronological_gain.ipynb 07_neon_feasibility_HARV_2023-07.ipynb 08_neon_label_measurement_model.ipynb 09_neon_coverage_features_dependence.ipynb 10_exploratory_visual_information.ipynb 11_projection_free_inference.ipynb 12_declared_analysis_failure_diagnostics.ipynb 13_neon_multiyear_availability_audit.ipynb
+cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_thermodynamics_and_synthetic_data.ipynb 01_information_estimator.ipynb 02_public_data_audit.ipynb 03_inference_and_density_revision.ipynb 04_context_capacity.ipynb 05_tail_robust_scoring.ipynb 06_permutation_null_and_chronological_gain.ipynb 07_neon_feasibility_HARV_2023-07.ipynb 08_neon_label_measurement_model.ipynb 09_neon_coverage_features_dependence.ipynb 10_exploratory_visual_information.ipynb 11_projection_free_inference.ipynb 12_declared_analysis_failure_diagnostics.ipynb 13_neon_multiyear_availability_audit.ipynb 15_cper_2020_2023_acquisition_audit.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+```bash
+cd notebooks && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace --timeout=-1 14_solar_context_and_dependence_aware_inference.ipynb 16_fresh_validation_solar_protocol.ipynb
+```
+
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 14 takes about 3 hours and notebook 16 about 9 hours on 16 workers (single-threaded BLAS per worker is about 7× faster than the default); notebook 15 downloads the CPER 2020–2023 tower tables and 3,792 `.meta` files; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -57,7 +64,7 @@ configs/   inference settings (roles each setting may consume)
 docs/      scope, policy, mathematics, decision log
 schemas/   JSON-schema data contracts with x-role / x-derived-from annotations
 src/visual_hygrometry/
-           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py  neon.py  features.py
+           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py  neon.py  features.py  suite.py
 notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 02 public-data audit,
            03 revised inference / predictive families / censoring with a held-out validation suite,
            04 context capacity (flexible context basis, visual projection, adequacy diagnostics),
@@ -66,7 +73,8 @@ notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 0
            07 NEON feasibility (HARV, July 2023), 08 NEON label measurement model (HARV, CPER),
            09 coverage / verified image set / features / temporal dependence, 10 exploratory visual comparison,
            11 projection-free inference with a new synthetic validation suite, 12 diagnostics of the notebook 10 failure,
-           13 multi-year NEON availability audit
+           13 multi-year NEON availability audit, 14 solar context and dependence-aware inference (development),
+           15 CPER 2020–2023 acquisition audit, 16 fresh validation of the solar-context protocol
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```

@@ -58,6 +58,25 @@ def clock(time_utc, utc_offset_min):
     return pd.DataFrame({'hour_local': local.dt.hour + local.dt.minute / 60 + local.dt.second / 3600, 'doy': local.dt.day_of_year}, index=time_utc.index)
 
 
+def solar(doy, hour_local, lat, lon, utc_offset_h):
+    """Solar geometry from local standard time (Spencer 1971 declination and equation of time; ~0.5 min, ~0.1 deg).
+
+    Returns solar_decl_deg, solar_hour_angle_deg (signed, 0 at solar noon, negative in the morning), solar_elev_deg and
+    solar_dayfrac (0 at sunrise, 1 at sunset). lon is degrees east; utc_offset_h the standard-time offset (CPER -7).
+    """
+    doy, h = np.asarray(doy, float), np.asarray(hour_local, float)
+    g = 2 * np.pi * (doy - 1 + (h - utc_offset_h - 12) / 24) / 365
+    decl = (0.006918 - 0.399912 * np.cos(g) + 0.070257 * np.sin(g) - 0.006758 * np.cos(2 * g) + 0.000907 * np.sin(2 * g)
+            - 0.002697 * np.cos(3 * g) + 0.00148 * np.sin(3 * g))
+    eot = 229.18 * (0.000075 + 0.001868 * np.cos(g) - 0.032077 * np.sin(g) - 0.014615 * np.cos(2 * g) - 0.040849 * np.sin(2 * g))
+    st = h + (4 * lon - 60 * utc_offset_h + eot) / 60
+    ha, phi = np.radians(15 * (st - 12)), np.radians(lat)
+    elev = np.degrees(np.arcsin(np.sin(phi) * np.sin(decl) + np.cos(phi) * np.cos(decl) * np.cos(ha)))
+    h0 = np.degrees(np.arccos(np.clip(-np.tan(phi) * np.tan(decl), -1, 1))) / 15  # half day length, hours
+    return pd.DataFrame({'solar_decl_deg': np.degrees(decl), 'solar_hour_angle_deg': np.degrees(ha), 'solar_elev_deg': elev,
+                         'solar_dayfrac': (st - 12 + h0) / (2 * h0)}, index=getattr(hour_local, 'index', None))
+
+
 def fourier(x, period, k, name):
     """Fixed sine/cosine basis with k harmonics; data-independent, so it cannot leak test-set statistics."""
     w = 2 * np.pi * np.asarray(x, float)[:, None] * np.arange(1, k + 1) / period

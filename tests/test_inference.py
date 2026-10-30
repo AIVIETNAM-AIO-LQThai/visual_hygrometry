@@ -177,3 +177,54 @@ def test_split_levels_hold_season_at_the_training_edge():
     assert np.allclose(Y[te], edge) and len(lv['L3']) == len(sp)
     designs, chosen = inference.select_capacity(list(lv.values()), y, sp, g // 4)
     assert all(d is lv[k][j] for j, (d, k) in enumerate(zip(designs, [list(lv)[c] for c in chosen])))
+
+
+def test_conditional_sampler_reproduces_persistence_and_context_mean():
+    rng = np.random.default_rng(7)
+    nd, per = 120, 12
+    day, slot = np.repeat(np.arange(nd), per), np.tile(np.arange(per, dtype=float), nd)
+    x = rng.normal(size=len(day))
+    u = np.zeros(nd)
+    for t in range(1, nd): u[t] = .9 * u[t - 1] + np.sqrt(1 - .81) * rng.normal()
+    V = (np.sin(2 * x) + u[day] + .5 * rng.normal(size=len(day)))[:, None]
+    draw = inference.conditional_sampler(V, np.c_[x, slot], day, slot, strata=day // 60, groups=day // 7)
+    Vs = np.stack([draw(np.random.default_rng(k)) for k in range(100)])
+    lag1 = lambda m: np.corrcoef(m[1:], m[:-1])[0, 1]
+    obs = np.bincount(day, V[:, 0]) / per
+    sim = np.array([np.bincount(day, r[:, 0]) / per for r in Vs - Vs.mean(0)])  # shared fitted mean removed
+    for a in (0, 60):  # each stratum's persistence, as estimated from the observed series, is reproduced
+        assert abs(np.mean([lag1(m[a:a + 60]) for m in sim]) - lag1(obs[a:a + 60])) < 0.15
+    assert abs(Vs.std() / V.std() - 1) < 0.15 and Vs.shape == (100,) + V.shape
+
+
+def test_challenger_finds_missing_nonlinearity_and_not_otherwise():
+    rng = np.random.default_rng(8)
+    g = np.repeat(np.arange(60), 10)
+    x = rng.uniform(-2, 2, len(g))
+    sp = splits.kfold(splits.assign_folds(g, 4))
+    R = inference.rff(x[:, None], [0.5])
+    for amp, check in [(2.0, lambda d: d > 0.2), (0.0, lambda d: d > -0.02)]:
+        y = x + amp * np.sin(3 * x) + rng.normal(size=len(g))
+        ls_c = scoring.crossfit(x[:, None], y, sp, g // 5, robust=True)[2]
+        ls_h = inference.challenger(x[:, None], R, y, sp, g // 5, robust=True)[2]
+        assert check(np.mean(ls_h - ls_c))
+
+
+def test_repair_gain_detects_a_context_function_the_image_tracks():
+    rng = np.random.default_rng(9)
+    g = np.repeat(np.arange(60), 10)
+    x = rng.uniform(-2, 2, len(g))
+    sp = splits.kfold(splits.assign_folds(g, 4))
+    h = np.sin(3 * x)
+    y, V = x + h + rng.normal(size=len(g)), (h + .2 * rng.normal(size=len(g)))[:, None]  # V ⊥ D | x, but V tracks h(x)
+    X = np.c_[x, inference.rff(x[:, None], [0.5])]
+    P = inference.smooth_projection_splits(X, V, sp, g // 5)
+    assert np.mean(inference.repair_gain(x[:, None], P, y, sp, g // 5, robust=True)) > 0.1  # linear context misses h
+    assert np.mean(inference.repair_gain(np.c_[x, np.sin(3 * x)], P, y, sp, g // 5, robust=True)) < 0.01  # adequate context
+
+
+def test_perm_test_max_shifts_takes_an_even_subset():
+    C, V, y, g, slot = _grid(0.0, seed=4)
+    sp = splits.kfold(splits.assign_folds(g, 4))
+    _, p, null = inference.perm_test(C, V, y, sp, g, slot, units=g, shift_min=7, max_shifts=9)
+    assert len(null) == 9 and p >= 1 / 10

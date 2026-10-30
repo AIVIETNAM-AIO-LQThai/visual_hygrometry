@@ -10,6 +10,7 @@ from scipy import linalg, stats
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import GroupKFold, cross_val_predict
 
+from . import scoring
 from .scoring import _standardise, crossfit
 
 
@@ -96,7 +97,7 @@ def clip_to_training(V, splits, q=0.005):
     return [np.clip(V, *np.quantile(V[tr], [q, 1 - q], axis=0)) for tr, _ in splits]
 
 
-def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, clip=None, **kw):
+def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, clip=None, sampler=None, max_shifts=None, **kw):
     """Conditional permutation test of H0: V independent of D given C, refitting the joint model for every draw.
 
     Null generator: V = (linear prediction from Cnull) + residual R; whole `units` (default: `groups`, e.g. days; pass
@@ -112,6 +113,9 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     multi-day persistence; it assumes stationarity of the residual series (wrap-around joins its end to its start).
     C: context design, or a list of per-split designs (then Cnull is required). keep: rows entering the statistic.
     clip: quantile q of `clip_to_training`, applied to the observed and to every null V alike.
+    sampler: a function rng -> null V (e.g. `conditional_sampler`, a conditional randomisation test); it replaces the
+    permutation and shift generators and draws n_perm nulls. max_shifts: an evenly spaced subset of the shift
+    configurations (fewer refits; the attainable minimum p rises to 1 / (max_shifts + 1)).
     Returns (observed contrast, p-value, null contrasts).
     """
     if Cnull is None: Cnull = C
@@ -130,8 +134,12 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     stat = lambda Vx: np.nanmean((crossfit(cat(Vx), y, splits, groups, **kw)[2] - ls_c)[rows])
     draw, rng = donor_sampler(groups if units is None else units, np.asarray(slot, float), strata), np.random.default_rng(seed)
     obs = stat(V)
-    shifts = [None] * n_perm if shift_min is None else shift_configs(groups if units is None else units, strata, shift_min)
-    null = np.array([stat(Vhat + orth(R[draw(rng, k)])) for k in shifts])
+    if sampler is not None:
+        null = np.array([stat(sampler(rng)) for _ in range(n_perm)])
+    else:
+        shifts = [None] * n_perm if shift_min is None else shift_configs(groups if units is None else units, strata, shift_min)
+        if max_shifts and shift_min is not None and len(shifts) > max_shifts: shifts = [shifts[i] for i in np.unique(np.linspace(0, len(shifts) - 1, max_shifts).round().astype(int))]
+        null = np.array([stat(Vhat + orth(R[draw(rng, k)])) for k in shifts])
     n_perm = len(null)
     return obs, (1 + np.sum(null >= obs)) / (1 + n_perm), null
 
@@ -201,3 +209,93 @@ def adequacy(C, y, splits, groups, raw, Vhat=None, level=0.95, ls_flex=None):
         d = crossfit(np.c_[C, Vhat], y, splits, groups)[2] - ls_c
         out['proj'] = cluster_lower(d[ok], groups[ok], level)
     return out
+
+
+def _ar1(x):
+    """Lag-1 autocorrelation of an ordered series with Kendall's first-order small-sample correction r + (1 + 3r)/n,
+    clipped to [0, 0.995]."""
+    x = np.asarray(x, float) - np.mean(x)
+    if len(x) < 3: return 0.0
+    r = x[1:] @ x[:-1] / max(x @ x, 1e-12)
+    return float(np.clip(r + (1 + 3 * r) / len(x), 0, 0.995))
+
+
+def conditional_sampler(V, Craw, units, slot, strata=None, groups=None, inner=5):
+    """Null generator for a conditional randomisation test: V* = E^[V | C] + a simulated residual process.
+
+    E^[V | C] is a cross-fitted boosted regression on the raw context Craw (grouped by `groups`, e.g. weeks); labels are
+    never read. Residuals are modelled per stratum (season, camera epoch) as a day-level AR(1) across consecutive units
+    plus an AR(1) within each unit (ordered by slot), with innovations correlated across visual columns as observed.
+    Valid to the extent that this model of V | C is right; persistence, regime switching and heteroscedasticity outside
+    it are not reproduced. Returns draw(rng) -> V*.
+    """
+    V = np.asarray(V, float).reshape(len(V), -1)
+    units, slot = np.asarray(units), np.asarray(slot, float)
+    strata = np.zeros(len(V), int) if strata is None else np.asarray(strata)
+    f = project(Craw, V, units if groups is None else groups, inner)
+    E, plan = V - f, []
+    for st in np.unique(strata):
+        rows = np.flatnonzero(strata == st)
+        ud, inv = np.unique(units[rows], return_inverse=True)
+        u = np.array([E[rows][inv == j].mean(0) for j in range(len(ud))])  # day means, days x columns
+        w = E[rows] - u[inv]
+        order = np.lexsort((slot[rows], inv))
+        same = inv[order][1:] == inv[order][:-1]
+        pu = np.array([_ar1(c) for c in u.T])
+        pw = np.array([np.clip((w[order][1:][same] * w[order][:-1][same]).sum(0)[k] / max((w[order] ** 2).sum(0)[k], 1e-12), 0, .995) for k in range(V.shape[1])])
+        Lu, Lw = (np.linalg.cholesky(np.cov(a.T).reshape(V.shape[1], V.shape[1]) + 1e-12 * np.eye(V.shape[1])) for a in (u, w))
+        plan.append((rows, inv, order, same, pu, pw, Lu, Lw, len(ud)))
+
+    def draw(rng):
+        out = f.copy()
+        for rows, inv, order, same, pu, pw, Lu, Lw, nd in plan:
+            zu = rng.standard_normal((nd, V.shape[1])) @ Lu.T
+            u = np.empty_like(zu)
+            u[0] = zu[0]
+            for t in range(1, nd): u[t] = pu * u[t - 1] + np.sqrt(1 - pu ** 2) * zu[t]
+            zw = rng.standard_normal((len(rows), V.shape[1])) @ Lw.T
+            w = np.empty_like(zw)
+            w[0] = zw[0]
+            for t in range(1, len(rows)): w[t] = np.where(same[t - 1], pw * w[t - 1] + np.sqrt(1 - pw ** 2) * zw[t], zw[t])
+            out[rows[order]] += u[inv[order]] + w
+        return out
+    return draw
+
+
+def rff(raw, scales, n=400, seed=0):
+    """Random Fourier features of the raw context (Gaussian kernel with per-variable length scales). Fixed seed and no
+    labels; long scales for time-index variables (e.g. 20 days for day of year) keep them from following weather."""
+    rng = np.random.default_rng(seed)
+    W, b = rng.standard_normal((raw.shape[1], n)), rng.uniform(0, 2 * np.pi, n)
+    return np.sqrt(2 / n) * np.cos((np.asarray(raw, float) / np.asarray(scales, float)) @ W + b)
+
+
+def challenger(C, R, y, splits, groups, **kw):
+    """Context-only adequacy challenger on the same held-out splits as the contrast: the audited context design plus
+    smooth non-linear functions of the context (`rff` features R), one ridge with the penalty chosen by grouped inner CV.
+    Returns held-out (mu, sd, log score). A boosted residual correction was rejected: trees on day of year memorise
+    persistent weather and lose on held-out weeks (notebook 14 §2)."""
+    return crossfit([np.c_[c, R] for c in C] if isinstance(C, list) else np.c_[C, R], y, splits, groups, **kw)
+
+
+def smooth_projection_splits(X, V, splits, groups, inner=5):
+    """Train-only ridge projection of V on a fixed design X (e.g. the richest context basis plus `rff` features): inner
+    out-of-fold on training rows, fitted on all training rows for test rows. Labels are never used."""
+    V = np.asarray(V, float).reshape(len(V), -1)
+    out = []
+    for tr, te in splits:
+        P, idx = np.full(V.shape, np.nan), np.flatnonzero(tr)
+        cv = [(np.isin(np.arange(len(V)), idx[a]), np.isin(np.arange(len(V)), idx[b])) for a, b in GroupKFold(inner).split(idx, groups=groups[tr])]
+        for k in range(V.shape[1]):
+            P[tr, k] = crossfit(X, V[:, k], cv, groups, inner=inner)[0][tr]
+            P[te, k] = scoring.ridge_fit(X, V[:, k], tr, groups, inner)['predict'](X[te])
+        out.append(P)
+    return out
+
+
+def repair_gain(C, P, y, splits, groups, ls_c=None, **kw):
+    """Secondary adequacy diagnostic: held-out log-score gain from adding the train-only projection P of V on the context
+    (`smooth_projection_splits`) to the context model. A gain means the context misses a function of C that the image
+    tracks, i.e. the joint model could repair the context. Diagnostic only; never part of the primary contrast."""
+    ls_c = crossfit(C, y, splits, groups, **kw)[2] if ls_c is None else ls_c
+    return crossfit([np.c_[c, p] for c, p in zip(C if isinstance(C, list) else [C] * len(splits), P)], y, splits, groups, **kw)[2] - ls_c

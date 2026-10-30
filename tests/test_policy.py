@@ -161,3 +161,18 @@ def test_hour_season_level_is_optional_registered_and_nested():
     assert set(lv['L3']) < set(lv['L4']) and any(c.startswith('hourxdoy_') for c in lv['L4'])
     Xc, _, _, _ = select_sci(df4, 'e2', lv['L4'], ['vis_moist'])
     assert Xc.shape[1] == len(lv['L4'])
+
+
+def test_solar_levels_are_registered_nested_and_survive_season_clamping():
+    from visual_hygrometry import data, worlds
+    df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 20, seed=0).assign(doy=lambda d: 160 + d.day)
+    df = pd.concat([df, data.solar(df.doy, df.hour_local, 40.8, -104.7, -7)], axis=1)
+    args = (np.arange(-4, 45, 4.0), np.arange(140, 261, 15.0), np.arange(140, 261, 7.5))
+    df2, lv = worlds.add_context_levels(df, *args, hour_season=True, solar=True)
+    assert set(lv['L3']) < set(lv['S']) < set(lv['S4']) and set(lv['L4']) < set(lv['S4'])
+    Xc, _, _, _ = select_sci(df2, 'e2', lv['S4'], ['vis_moist'])
+    assert Xc.shape[1] == len(lv['S4'])
+    tr = (df.day < 10).to_numpy()
+    sl, cols = worlds.split_levels(df, [(tr, ~tr)], *args, hour_season=True, solar=True)
+    sun = [cols['S'].index(c) for c in cols['S'] if c.startswith(('sun_spl', 'dayfrac'))]
+    assert np.allclose(sl['S'][0][:, sun], df2[[cols['S'][i] for i in sun]].to_numpy())  # solar terms use the true date

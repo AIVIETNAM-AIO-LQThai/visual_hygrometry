@@ -1,81 +1,56 @@
-# Field pilot: site and instrumentation checklist (draft 2)
+# Field pilot: checklist by purpose (draft 3)
 
-**Status:** draft after review 4. **No instrument is to be ordered yet.**
+**Status:** draft after review 5. **No equipment is to be ordered yet.**
 
-Every requirement traces to a failure or ambiguity found in the NEON audits (notebooks 07–13), not to a general sensor wish-list. Each item is tiered:
-- **M — minimum viable.** Without it the pilot cannot estimate E2 at all, or repeats a NEON failure.
-- **R — recommended.** Closes a known NEON ambiguity, or makes the pilot robust.
-- **X — reference tier.** Needed only for mechanism claims (extinction, fog/dew) or for a confirmatory study.
+Each requirement traces to a NEON finding (notebooks 07–15) or to the synthetic validations (notebooks 11 and 14). The checklist separates three purposes that need different durations and different hardware:
+- **A — engineering pilot (weeks to a few months):** prove that the camera and measurement chain work and are synchronised. It needs neither several seasons nor any statistical power.
+- **B — extended research collection (several seasons):** enough independent meteorological regimes to estimate and test E2, under the protocol that passes validation.
+- **C — reference instrumentation:** supports optical, aerosol and condensation *mechanism* claims, which neither A nor B can.
 
-The priorities set by review 4 are the M items:
-- high-quality, radiation-shielded RH/T;
-- an independent conditioning temperature;
-- RAW capture;
-- synchronised timestamps;
-- stable site geometry;
-- near-saturation QC.
+A requirement listed under A is also required for B and C; one listed under B is also required for C.
 
-## 1 · Reference humidity and temperature (label)
+## A · Engineering pilot: the minimum chain
 
-| tier | requirement | reason (NEON evidence) |
+| requirement | test that the pilot must pass | reason |
 |---|---|---|
-| M | Fan-aspirated radiation shield for the RH/T probe; fan state or flow logged at ≥ 1 min | The NEON HMP155 sits in a passive shield (ATBD, D-045). With high sun and calm air it reads up to +0.9 K (HARV) and +1.3 K (CPER) warmer than the aspirated thermometer, and no published flag marks this (nb08 §2). The error also varies by year (HARV 0.1–1.2 K, nb13 §3). |
-| M | Independent aspirated temperature unit (PRT) on its own channel, used only as conditioning temperature | The leading NEON label `D_h = T_asp − Td` shares its unit with the conditioning temperature (nb08 §3). Separate units make label and context errors independent. |
-| M | Near-saturation QC kept per sample: raw values, the sensor's own flags and the reason for any rejection, with nothing blanked at the source | NEON's persistence test blanked up to 36 % of the minutes with implied RH ≥ 97 % in a July (nb13 §3), so high-RH labels are missing-not-at-random (nb08 §4). |
-| M | Calibration certificate with uncertainty for every RH and T unit, plus an on-site intercomparison at install and removal | NEON gave uncertainty only as expanded values, which changed by year (RH 1.2–3.1 %, nb13 §3), and sensor swaps are not in its public logs. |
-| R | Second RH probe of a different make, in its own aspirated shield | Lets a probe fault be distinguished from weather (cf. HARV July 2021: RH up to 558 %, 25 % of minutes invalid, nb13 §3). |
-| R | 1 Hz (≥ 0.1 Hz) raw record kept alongside the 1-min aggregates | Finer data were needed to tell the plateau from QC blanking (nb08 §4). |
-| X | Chilled-mirror dew-point hygrometer | The only reference that stays valid through saturation. It is needed for fog/dew mechanism claims, which NEON could not support. |
+| Fan-aspirated radiation shield for the RH/T probe, with fan state or flow logged at ≥ 1 min | the probe–PRT difference is independent of shortwave and wind over the pilot (no growth with SW at low wind) | NEON's passive shield: +0.9 to +1.3 K in calm, high sun; it varies by year and is unflagged (nb08, nb13) |
+| Independent aspirated PRT on its own channel, used only as conditioning temperature | the two temperature units agree within their stated uncertainties when both are aspirated | NEON's leading label shares a unit with the context (nb08) |
+| Calibration certificate with uncertainty for every RH and T unit; intercomparison at install and removal | the drift between the two comparisons is within the certificate's uncertainty | NEON's uncertainty changed by year, and swaps are not logged (nb13) |
+| Near-saturation QC kept per sample: raw values, sensor flags and the reason for any rejection; nothing blanked at the source | every blanked or flagged sample is traceable to a rule | NEON's persistence test blanked up to 36 % of high-RH minutes (nb13) |
+| RAW (or linear 16-bit) capture with fixed exposure, gain, white balance and aperture; no auto-haze, dehaze, sharpening or local tone mapping; settings in the metadata | the image statistics of a fixed target are constant across illumination at a fixed exposure | auto-exposure alone passed the zero-information test at NEON (nb10) |
+| No burned-in overlay; time and settings in a sidecar | none needed | NEON needs a 3.1 % overlay mask (D-042) |
+| NTP- or GNSS-disciplined clocks on camera and logger; offset logged; exposure start and duration in UTC | the logged offset stays ≤ 1 s | the label is joined by UTC minute (nb09) |
+| Camera unit identity (serial or MAC) in every frame; a reference frame after every intervention; rigid mount | the automated shift and edge-correlation check (nb13) against the install frame passes daily | HARV unit swap and CPER view change (nb13) |
+| Levelled pyranometer at the site, with the level checked at each visit | the clear-sky index is ≈ 1 on clear days | E2_illum needs K (D-060); NEON levelling faults (nb13) |
+| Wind at the probe height | none needed | the radiation error depends on wind (nb08) |
 
-## 2 · Saturation and wetting indicators (independent of the label probe)
+## B · Extended research collection: what E2 estimation needs
 
-| tier | requirement | reason |
-|---|---|---|
-| R | Leaf-wetness sensor near the near-field target | Separates wet surfaces from probe saturation. NEON has none, so no dew claim was possible (review 3). |
-| R | Tipping-bucket precipitation | Rain and wet-lens frames must be identifiable without using the image. |
-| X | Forward-scatter visibility or present-weather sensor | An optical fog/haze reference independent of the camera; a prerequisite for any extinction interpretation. |
+| requirement | reason |
+|---|---|
+| **Several seasons** at one site, so that season and the diurnal cycle are learned across years (the planned design is leave one season out with ≥ 4 seasons) | 1-season effect sizes are unusable (nb11: power 0.56 at 0.03 nats, instability up to 0.15 nats). Week-cluster intervals failed when information persisted for weeks (coverage 0.49); intervals need between-season replication and validated coverage, and more seasons alone do not guarantee it (statistical note §5) |
+| A climate with frequent near-saturation mornings, dry spells and varied weather regimes | regime diversity is what gives independent information; persistent regimes defeat the shift test (nb11: 0.100 at AR 0.9) |
+| Second RH probe of a different make in its own aspirated shield | separates probe faults from weather (cf. HARV July 2021, nb13) |
+| Leaf-wetness sensor near the near-field target; tipping-bucket precipitation | wet surfaces and wet lenses must be identifiable without the image |
+| A sky region that does not clip (exposure for the sky, or HDR bracketing) | HARV's sky band is clipped in 99 % of frames (nb09) |
+| Non-vegetated near and far targets (rock, building, painted panel) | phenology persists for weeks and competes with optics as the pathway (nb09, nb14) |
+| Lens heater or hood, and a cleaning log | lens fog and dirt mimic haze |
+| Power, network and storage for RAW at ≤ 10 min (~0.1–0.5 TB per site-season) | |
+| A second, contrasting climate | transfer test |
 
-## 3 · Radiation, illumination and wind at probe height
+## C · Reference instrumentation: mechanism claims
 
-| tier | requirement | reason |
-|---|---|---|
-| M | Incoming shortwave pyranometer at the site, levelled, with the levelling checked at every visit | E2_illum needs a quality-controlled clear-sky index (review 4, item 4). NEON's radiometers had levelling faults lasting months (nb13 §2). |
-| M | Wind at the label-probe height | The radiation error falls with wind (nb08 §2). NEON wind is on another boom level, and its boom positions changed (nb13 §3). |
-| R | Upwelling shortwave or a surface-temperature radiometer | Separates ground heating from probe heating on calm, clear days. |
+| requirement | claim it supports |
+|---|---|
+| Chilled-mirror dew-point hygrometer | labels valid through saturation; fog and dew |
+| Forward-scatter visibility or present-weather sensor | an optical extinction reference independent of the camera |
+| Surveyed distances and bearings to ≥ 3 far-field targets (e.g. 0.2, 1 and 5 km) | contrast-versus-distance and extinction estimates |
+| Dark frames, flat field and a grey/colour target in the far field | a radiometric response model |
+| Dried-aerosol (PM) measurement with a logged inlet RH | E3, hygroscopic growth |
+| Upwelling shortwave or a surface-temperature radiometer | separating surface heating from probe heating |
 
-## 4 · Camera and acquisition
+## Open before the design is final
 
-| tier | requirement | reason (NEON PhenoCam evidence) |
-|---|---|---|
-| M | RAW (or linear 16-bit) capture; JPEG only as a by-product | NEON frames are 8-bit JPEG with an unknown tone curve (D-043). |
-| M | Fixed exposure, gain, white balance and aperture (or fixed bracketing); every setting in the image metadata; no auto-haze, dehaze, sharpening or local tone mapping | Auto-exposure alone passed the zero-information test at both NEON sites (nb10 §2). The automatic processing acts on exactly the contrast that would carry the signal. |
-| M | No burned-in overlay; time and settings in a sidecar | NEON needs an overlay mask covering 3.1 % of each frame (D-042). |
-| M | Camera unit identity (serial or MAC address) logged with every frame, and a reference frame saved after any intervention | The HARV camera unit was replaced between 2021 and 2022, with a change of view (nb13 §4). Camera epochs must be declared strata. |
-| R | Exposure chosen so the sky does not clip, or HDR bracketing | At HARV the sky band is clipped in 99 % of frames, so the sky features were dropped (nb09 §4). |
-| R | Non-vegetated near and far targets (rock, building, painted panel) | Both NEON scenes are vegetation, and phenology persists over weeks (CPER greenness residual lag-1 0.98, nb09 §5). It competes with atmospheric optics as the moisture pathway. |
-| R | Lens heater or hood, and a lens-cleaning log | Lens fog and dirt mimic haze. |
-| X | Dark frames, flat field and a grey/colour target in the far field | A radiometric response model, needed for extinction claims. |
-
-## 5 · Timing and geometry
-
-| tier | requirement | reason |
-|---|---|---|
-| M | NTP- or GNSS-disciplined clocks on the camera and the logger; offset logged daily; exposure start and duration in UTC | NEON's clocks agreed to 0 s (nb07, nb09 §1), but they are separate systems. The label is joined by the frame's UTC minute. |
-| M | Rigid mount and a monthly field-of-view check against the reference frame (an automated shift and edge-correlation check as in nb13 §4) | CPER's view changed between 2019 and 2020 (44 px), and HARV's with its 2022 unit swap (nb13 §4). Fixed image regions assume a fixed view. |
-| R | Surveyed distances and bearings to at least three far-field targets (e.g. 0.2, 1 and 5 km) | Any contrast-versus-distance analysis needs target ranges; NEON regions are image bands with no ranges. |
-
-## 6 · Site and record design
-
-- **M:** at least three seasons at one site, so that season is learned across years rather than interpolated within one.
-  - In the synthetic validation (nb11), the 1-season design gave power 0.56 at a truth of 0.03 nats and 90th-percentile instability up to 0.15 nats. With one of three seasons held out, power was 0.93 at 0.03 nats and the estimate was stable within 0.03 nats.
-  - Even three seasons gave intervals that covered the truth in only 0.49 of replicates when the information sits in a state persisting for weeks. More seasons, not more days, are what buys independent replication.
-- **M:** a humidity climate with frequent near-saturation mornings and dry spells.
-- **R:** a second, contrasting climate (semi-arid), to test transfer.
-- **R:** power and network for the aspirated shields and RAW storage (~0.1–0.5 TB per site-season at 10 min).
-- **R:** a far-field line of sight across uniform terrain.
-
-## 7 · Open before the pilot design is final
-
-- Which visual quantity is primary in confirmatory Exp 2a (frozen encoder or the predefined low-dimensional features), and whether RAW changes that choice.
-- Sample size in independent seasons and weeks, from the variance of the multi-year NEON G estimates once available.
-- Whether the X-tier chilled mirror is affordable, or whether a heated probe plus the R-tier wetting and visibility indicators is the accepted compromise.
+- The number of seasons B needs, from the power and coverage of whichever protocol passes validation (notebook 14 onward), stated in independent seasons, not days.
+- Whether a heated RH probe plus the B-tier wetting indicators is an acceptable substitute for the C-tier chilled mirror for the confirmatory label.
+- The primary visual quantity for confirmatory Exp 2a (predefined features or a frozen encoder), and whether RAW changes it.

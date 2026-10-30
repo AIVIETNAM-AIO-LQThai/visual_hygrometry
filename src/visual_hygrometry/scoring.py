@@ -105,7 +105,7 @@ def ridge_fit(X, y, tr, groups, inner=5, **pen):
     m, s = _standardise(X, tr, **pen)
     Z = (X[tr] - m) / s
     w = np.linalg.solve(Z.T @ Z + ALPHAS[k] * np.eye(Z.shape[1]), Z.T @ (y[tr] - y[tr].mean()))
-    return dict(alpha=ALPHAS[k], intercept=y[tr].mean(), coef=w, mean=m, scale=s, sd=np.sqrt(np.mean((y[tr] - P[:, k]) ** 2)),
+    return dict(alpha=ALPHAS[k], intercept=y[tr].mean(), coef=w, mean=m, scale=s, sd=np.sqrt(np.mean((y[tr] - P[:, k]) ** 2)), oof=P[:, k],
                 predict=lambda Xn: y[tr].mean() + ((Xn - m) / s) @ w)
 
 

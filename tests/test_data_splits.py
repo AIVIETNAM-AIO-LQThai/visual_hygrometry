@@ -86,3 +86,19 @@ def test_chrono_split_orders_and_purges():
     assert set(b[fit]) == set(range(6)) and set(b[ev]) == {7, 8, 9} and not (fit & ev).any()
     with pytest.raises(ValueError):
         splits.chrono(b, frac=0.95, gap=1)
+
+
+def test_solar_geometry_matches_physical_checks():
+    from visual_hygrometry import data
+    lat, lon, off = 40.8155, -104.7456, -7  # CPER
+    s = data.solar(np.array([172, 80, 355]), np.array([12.0, 12.0, 12.0]), lat, lon, off)
+    assert abs(s.solar_decl_deg[0] - 23.44) < 0.3 and abs(s.solar_decl_deg[1]) < 1.0 and abs(s.solar_decl_deg[2] + 23.4) < 0.3
+    noon = data.solar(np.full(1, 172), np.full(1, 12.0), 0.0, 0.0, 0)  # Greenwich meridian, equator
+    assert abs(noon.solar_elev_deg[0] - (90 - noon.solar_decl_deg[0])) < 0.6  # equation of time offsets noon by ~2 min
+    eot = lambda doy: 60 * (12 - 12 - data.solar(np.full(1, doy), np.full(1, 12.0), 0.0, 0.0, 0).solar_hour_angle_deg[0] / 15)
+    assert abs(-eot(307) - 16.4) < 0.7 and abs(-eot(42) + 14.2) < 0.7  # minutes, solar time ahead of / behind clock
+    h = np.linspace(4, 21, 2000)
+    d = data.solar(np.full_like(h, 172), h, lat, lon, off)
+    up = h[d.solar_elev_deg > -0.83]  # refraction and solar radius
+    assert 14.9 < up[-1] - up[0] < 15.3  # day length near the solstice at 40.8 N
+    assert d.solar_hour_angle_deg[h < 11].lt(0).all() and np.allclose(d.solar_dayfrac[np.argmin(np.abs(d.solar_hour_angle_deg))], 0.5, atol=.01)
