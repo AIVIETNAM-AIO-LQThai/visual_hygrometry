@@ -105,11 +105,21 @@ Status: **adopted** (in force, evidence cited), **provisional** (in force until 
 | D-073 | CPER 2020–2023 labels are usable (valid ≥ 0.98 every month); HMP155 RH uncertainty changes by year (1.18 / 1.50 / 3.09 / 2.48 %), so years stay folds; no anomalous radiation-error year; camera configuration identical across 3,792 frames. | recorded | nb15 |
 | D-074 | **Fresh validation of the solar-context protocol: 5 of 7 gates pass.** CRT Type I 0.02–0.08 in ten nulls (A1), power 0.83–1.00 (A2), estimates track G (A3), stable (A5), repair diagnostic valid at τ = 0.002 (A7). The season-cluster interval under-covers (A4: 0.71–0.91 in 12 of 15 worlds) and the context-only challenger fails both false alarms (up to 0.19) and detection (0.54) (A6). Effect sizes stay descriptive; no NEON test or effect size has been run; confirmatory Exp 2a stays blocked. | **open, review requested** | nb16; reviews/m1_solar_protocol_review.md |
 
+## M1.3: real-image conditional-model validation (CPER 2020–2023; see [reviews/m1_real_sampler_review.md](../reviews/m1_real_sampler_review.md))
+
+| id | decision | status | evidence / revisit when |
+|---|---|---|---|
+| D-075 | CPER 2020–2022 hourly images verified under the frozen plan: 3,792 JPEGs complete and decodable, SHA-256 manifest `data/manifests/phenocam_hourly_CPER_2020-2022JJA.csv`, 2023 hashes unchanged, one camera unit and configuration, no view shift, clocks within 1 s. Usable rows 1,225 / 1,166 / 1,220 / 1,206. | recorded | nb17 §1–6 |
+| D-076 | Camera clock read from the burned-in overlay (`neon.overlay_time_digits`, `neon.read_overlay_time`; digit templates from 2023 frames with a rendered `.meta` time; readings with margin < 2 unreadable). Held-out 2023: 99.88 % of frames right. One confident misread on 2020–2022 (9 July 2021, overlay 20:00:05 read as 20:01:11) excluded its day, conservatively. | adopted | nb17 §2; independent exposure–clear-sky-index lag 0 in every year |
+| D-077 | **The CRT sampler is not suitable for exploratory testing on the real CPER features** (declared rule: F1 and F5). Within-day persistence is under-simulated (36 of 36 cells; the within-day AR(1) is estimated from day-demeaned residuals without small-sample correction). Residual SD depends on hour and temperature, and tails are heavy (excess kurtosis median 3.8). A semi-synthetic real-image null rejects at 0.026 (39 dependent datasets), and an injected ≈ 0.03-nat component is detected in 0.28. No Q0 p-value has been computed on the real labels. | **open, review requested** | nb17 §7 |
+| D-078 | Per-season held-out gains, descriptive: +0.020 (2020), +0.022 (2021), −0.025 (2022), +0.073 (2023) nats/row. They are robust to the context choice (≤ 0.004) and to the label (D_probe); there is no repair flag. They are fragile to refitting (removing 20 near-saturated rows moves 2021 by −0.019 and 2022 by −0.030), partly reproduced by log exposure alone (−0.004 to +0.017), and 2023's gain is concentrated in low-sun rows. No claim about E2. | recorded | nb18 |
+| D-079 | `suite.pipeline` accepts real records: `shared_sensor`, `n_perm`, `level` and `null_tests` options, and returns per-season gains, chosen contexts and per-row contrasts. Defaults reproduce the validated pipeline exactly (30 of 30 stored quantities on two fixed replicates). | adopted | tests; scratch equality check |
+
 ## Open questions carried to M1
 
 - CO-RH construction (direct RH head vs joint `p(T, D | V)`), and the clock-only reference for CO.
 - Site and calibration schemas (target distances, region maps, radiometric response), deferred until a fixed site or public camera is chosen.
 - A valid interval for G with four seasons, and a primary adequacy auditor with demonstrated power (D-074).
-- Whether the CRT sampler describes real multi-feature images (residual dependence, regimes, tails); no synthetic suite can show it.
+- A conditional sampler that reproduces real within-day persistence, hour- and temperature-dependent scale and heavy tails (D-077), validated synthetically and re-audited on the CPER features before any real-data Q0.
 - Tobit-type fitting for censored labels; temperature-history look-back ablation.
 - Dried-aerosol feasibility for E3.

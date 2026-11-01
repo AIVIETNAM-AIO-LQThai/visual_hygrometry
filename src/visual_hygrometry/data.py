@@ -69,6 +69,14 @@ def solar(doy, hour_local, lat, lon, utc_offset_h):
     return pd.DataFrame({'solar_decl_deg': np.degrees(decl), 'solar_hour_angle_deg': np.degrees(ha), 'solar_elev_deg': elev,
                          'solar_dayfrac': (st - 12 + h0) / (2 * h0)}, index=getattr(hour_local, 'index', None))
 
+def clearsky_index(sw, elev_deg, min_elev=10.0):
+    """K = SW / GHI_clear with the Haurwitz model GHI_clear = 1098 sin(e) exp(-0.057 / sin(e)) W m^-2, clipped to [0, 1.5];
+    NaN where the solar elevation e is at or below min_elev degrees (plan §6)."""
+    s = np.sin(np.radians(np.asarray(elev_deg, float)))
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):  # sin(e) <= 0 below the horizon; masked below
+        k = np.clip(np.asarray(sw, float) / (1098 * s * np.exp(-0.057 / s)), 0, 1.5)
+    return np.where(np.asarray(elev_deg, float) > min_elev, k, np.nan)
+
 def fourier(x, period, k, name):
     """Fixed sine/cosine basis with k harmonics; data-independent, so it cannot leak test-set statistics."""
     w = 2 * np.pi * np.asarray(x, float)[:, None] * np.arange(1, k + 1) / period

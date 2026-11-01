@@ -93,3 +93,7 @@ def test_solar_geometry_matches_physical_checks():
     up = h[d.solar_elev_deg > -0.83]  # refraction and solar radius
     assert 14.9 < up[-1] - up[0] < 15.3  # day length near the solstice at 40.8 N
     assert d.solar_hour_angle_deg[h < 11].lt(0).all() and np.allclose(d.solar_dayfrac[np.argmin(np.abs(d.solar_hour_angle_deg))], 0.5, atol=.01)
+
+def test_clearsky_index_is_one_for_the_haurwitz_sun_and_undefined_near_the_horizon():
+    k = data.clearsky_index([1098 * np.exp(-0.057), 0.0, 500.0, 2000.0], [90.0, 45.0, 5.0, 30.0])
+    assert k[0] == pytest.approx(1) and k[1] == 0 and np.isnan(k[2]) and k[3] == 1.5

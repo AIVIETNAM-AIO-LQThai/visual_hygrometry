@@ -110,6 +110,58 @@ def frame_meta(text):
                 overlay_pos=f"{m.get('overlay_position')}/{m.get('overlay_x')}/{m.get('overlay_y')}", auto_exposure=m.get('auto_exposure'), agc=m.get('agc'),
                 auto_haze=m.get('auto_haze'), ir_enable=m.get('ir_enable'), wb=f"{m.get('red')}/{m.get('green')}/{m.get('blue')}", resolution=m.get('resolution'))
 
+def overlay_time_digits(gray):
+    """Six digit images (H H M M S S, each 25 x 14, flattened) of the burned-in UTC time on overlay line 1 of a PhenoCam
+    frame (8-bit grey array), or None when no 'hh:mm:ss' token is found.
+
+    The overlay is a 2x pixel font, light on a uniform box. Text pixels are > box + 45 inside the box (columns whose 10th
+    percentile is the box colour). Glyphs split at empty columns and words at gaps of >= 9 px. The time is the
+    last word holding two colons (narrow glyphs made of two blobs). Each two-digit block is split at its centre column."""
+    a = np.asarray(gray, float)[2:27, :1000]
+    bg = np.median(a[:, :120])
+    txt = (a > bg + 45) & (np.abs(np.percentile(a, 10, axis=0) - bg) < 20)
+    e = np.flatnonzero(np.diff(np.r_[0, txt.any(0).astype(int), 0]))
+    segs = list(zip(e[::2], e[1::2]))
+    if not segs: return None
+    words, cur = [], [segs[0]]
+    for s in segs[1:]:
+        if s[0] - cur[-1][1] >= 9: words.append(cur); cur = [s]
+        else: cur.append(s)
+    words.append(cur)
+    def colon(s):
+        rows = np.flatnonzero(txt[:, s[0]:s[1]].any(1))
+        return s[1] - s[0] <= 4 and len(rows) > 1 and np.diff(rows).max() > 3
+    for w in reversed(words):
+        c = [i for i, s in enumerate(w) if colon(s)]
+        if len(c) != 2: continue
+        out = []
+        for x0, x1 in [(w[0][0], w[c[0]][0]), (w[c[0]][1], w[c[1]][0]), (w[c[1]][1], w[-1][1])]:
+            g = np.clip((a[:, x0:x1] - bg) / 100, 0, 1)
+            cols = np.flatnonzero(g.max(0) > .45)
+            if len(cols) < 4: return None
+            g = g[:, cols[0]:cols[-1] + 1]
+            m = g.shape[1] // 2
+            for part in (g[:, :m + g.shape[1] % 2], g[:, m:]):
+                p = np.zeros((25, 14))
+                p[:, :min(part.shape[1], 14)] = part[:, :14]
+                out.append(p.ravel())
+        return np.array(out)
+    return None
+
+def _shifted(x, s):
+    x = x.reshape(25, 14)
+    return np.roll(np.pad(x, ((0, 0), (3, 3))), s, axis=1)[:, 3:-3].ravel()
+
+def read_overlay_time(digits, templates):
+    """('hhmmss', smallest margin between best and second-best template distance) from `overlay_time_digits` output and
+    {digit: template}; the distance is the minimum over horizontal shifts of up to 3 px (a digit's offset in its
+    two-digit block differs between its left and right position). (None, nan) when there are no digits."""
+    if digits is None: return None, np.nan
+    keys = list(templates)
+    d = np.array([[min(((_shifted(x, s) - templates[k]) ** 2).sum() for s in range(-3, 4)) for k in keys] for x in digits])
+    s = np.sort(d, 1)
+    return ''.join(keys[i] for i in d.argmin(1)), float((s[:, 1] - s[:, 0]).min())
+
 def load_frames(cam, months, utc_offset_h):
     """Listed frames of a camera with filename-derived UTC time, .meta camera state and whether the JPEG is on disk."""
     rows = []

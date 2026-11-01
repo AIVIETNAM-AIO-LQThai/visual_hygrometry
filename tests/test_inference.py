@@ -207,3 +207,17 @@ def test_perm_test_max_shifts_takes_an_even_subset():
     sp = splits.kfold(splits.assign_folds(g, 4))
     _, p, null = inference.perm_test(C, V, y, sp, g, slot, units=g, shift_min=7, max_shifts=9)
     assert len(null) == 9 and p >= 1 / 10
+def test_sampler_audit_accepts_its_own_model_and_flags_heavy_tails():
+    rng = np.random.default_rng(11)
+    nd, per = 120, 12
+    day, slot = np.repeat(np.arange(nd), per), np.tile(np.arange(per, dtype=float), nd)
+    x, st = rng.normal(size=len(day)), day // 60
+    u = np.zeros((nd, 2))
+    for t in range(1, nd): u[t] = .8 * u[t - 1] + .6 * rng.normal(size=2)
+    for tails, expect in [(rng.normal(size=(len(day), 2)), False), (rng.standard_t(2.5, size=(len(day), 2)), True)]:
+        V = u[day] + .7 * tails
+        draw = inference.conditional_sampler(V, np.c_[x, slot], day, slot, strata=st, groups=day // 7)
+        stats_ = lambda Vx: inference.residual_stats(Vx - draw.f, day, slot, st, slot + 6, x)
+        env = inference.envelope(stats_(V), [stats_(draw(np.random.default_rng(k))) for k in range(80)])
+        assert env.loc[['day_lag1', 'within_lag1']].outside.mean() <= .25
+        assert env.loc['kurt'].outside.all() == expect

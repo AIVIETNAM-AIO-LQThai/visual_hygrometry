@@ -27,6 +27,8 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | solar context, dependence-aware null, adequacy auditors | [notebooks/14](notebooks/14_solar_context_and_dependence_aware_inference.ipynb), `suite.py`, [statistical note](docs/m1_statistical_note.md) | development only: CRT null controls Type I in every development world, the shift test does not under persistence; intervals under-cover |
 | CPER 2020–2023 acquisition and QC | [notebooks/15](notebooks/15_cper_2020_2023_acquisition_audit.ipynb), [plan](docs/cper_2020_2023_plan.md) | plan frozen; labels and camera state audited; imagery not downloaded |
 | fresh validation of the solar protocol | [notebooks/16](notebooks/16_fresh_validation_solar_protocol.ipynb) | **5 of 7 gates pass**: CRT Type I 0.02–0.08 in ten nulls, power ≥ 0.83, unbiased and stable estimates, repair diagnostic valid; season-cluster interval under-covers (0.71–0.91) and the context-only challenger fails ([review](reviews/m1_solar_protocol_review.md)) |
+| CPER 2020–2023 image verification, CRT sampler audit | [notebooks/17](notebooks/17_cper_image_verification_and_sampler_audit.ipynb), [manifest](data/manifests/phenocam_hourly_CPER_2020-2022JJA.csv) | images complete, clocks verified from the burned-in overlay; **sampler not suitable** on real features (within-day persistence, hour-dependent scale, heavy tails); no real-data Q0 ([review](reviews/m1_real_sampler_review.md)) |
+| CPER per-season predictive gains | [notebooks/18](notebooks/18_cper_per_season_predictive_gains.ipynb) | descriptive only: +0.020 / +0.022 / −0.025 / +0.073 nats/row (2020–2023); fragile to refitting, partly shared with auto-exposure |
 | field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft 3: engineering pilot / research collection / reference instrumentation |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
@@ -52,10 +54,10 @@ cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_t
 ```
 
 ```bash
-cd notebooks && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace --timeout=-1 14_solar_context_and_dependence_aware_inference.ipynb 16_fresh_validation_solar_protocol.ipynb
+cd notebooks && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace --timeout=-1 14_solar_context_and_dependence_aware_inference.ipynb 16_fresh_validation_solar_protocol.ipynb 17_cper_image_verification_and_sampler_audit.ipynb 18_cper_per_season_predictive_gains.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 14 takes about 3 hours and notebook 16 about 9 hours on 16 workers (single-threaded BLAS per worker is about 7× faster than the default); notebook 15 downloads the CPER 2020–2023 tower tables and 3,792 `.meta` files; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 14 takes about 3 hours and notebook 16 about 9 hours on 16 workers (single-threaded BLAS per worker is about 7× faster than the default); notebook 15 downloads the CPER 2020–2023 tower tables and 3,792 `.meta` files; notebook 17 needs the 3,792 hourly CPER JPEGs of 2020–2022 (1.42 GB, checked against their manifest) and takes about 1 hour, notebook 18 about 6 minutes; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -74,7 +76,8 @@ notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 0
            09 coverage / verified image set / features / temporal dependence, 10 exploratory visual comparison,
            11 projection-free inference with a new synthetic validation suite, 12 diagnostics of the notebook 10 failure,
            13 multi-year NEON availability audit, 14 solar context and dependence-aware inference (development),
-           15 CPER 2020–2023 acquisition audit, 16 fresh validation of the solar-context protocol
+           15 CPER 2020–2023 acquisition audit, 16 fresh validation of the solar-context protocol,
+           17 CPER image verification and real-image CRT sampler audit, 18 CPER per-season predictive gains
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```

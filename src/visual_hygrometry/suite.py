@@ -68,14 +68,17 @@ def make(W, n_seasons, seed):
     return pd.concat([df, data.solar(df.doy, df.hour_local, LAT, LON, OFF)], axis=1)
 
 def pipeline(df, W, full=True, force=None):
-    """The protocol on one simulated record (seasons < N_SEAS analysed; later seasons only score the frozen chronological
-    models). force: a context level used instead of the capacity search (diagnostics)."""
+    """The protocol on one record (seasons < N_SEAS analysed; later seasons only score the frozen chronological
+    models). force: a context level used instead of the capacity search (diagnostics). Real records (notebooks 17-18)
+    set W['shared_sensor'] when label and context share a sensor, and may set W['n_perm'] (CRT draws), W['level'] (an SCI
+    level, e.g. the acquisition-only control) and W['null_tests'] = False (auditors without the Q0 tests)."""
     s, extra = (df.year < N_SEAS).to_numpy(), []
     if W.get('illum'):
         I = data.spline(df.clearsky_k, ILL_K, 'illum_spl')
         df, extra = pd.concat([df, I], axis=1), list(I)
     dfl, lv = worlds.add_context_levels(df, KNOTS, DOY_K, DOY_F, hour_season=True, solar=True)
-    _, _, y, _ = policy.select_sci(dfl, 'e2_illum' if W.get('illum') else 'e2', lv['S4'] + extra, W['vis'])  # contract check
+    level = W.get('level', 'e2_illum' if W.get('illum') else 'e2')
+    _, _, y, _ = policy.select_sci(dfl, level, lv['S4'] + extra, W['vis'], allow_shared_sensor=W.get('shared_sensor', False))  # contract check
     g, yr, doy = df.day.to_numpy(), df.year.to_numpy(), df.doy.to_numpy()
     seasonal = np.column_stack([dfl[c].to_numpy() * (yr == k) for k in range(N_SEAS) for c in dfl if c.startswith('doy_spl')])  # season-specific curves
     y, V, Cnull = y.to_numpy(), df[W['vis']].to_numpy(), np.c_[dfl[lv['S4'] + extra].to_numpy(), seasonal][s]
@@ -92,19 +95,21 @@ def pipeline(df, W, full=True, force=None):
     seas = pd.Series(dz).groupby(yr[s]).mean().to_numpy()
     q = stats.t.ppf(.975, len(seas) - 1) * seas.std(ddof=1) / np.sqrt(len(seas))
     wlo, whi = inference.cluster_interval(r.d, wk[s][r.scored])
-    out = dict(est=r.mean, seas_lo=seas.mean() - q, seas_hi=seas.mean() + q, week_lo=wlo, week_hi=whi, level=np.mean(chosen), excluded=1 - keep.mean())
+    out = dict(est=r.mean, seas_lo=seas.mean() - q, seas_hi=seas.mean() + q, week_lo=wlo, week_hi=whi, level=np.mean(chosen), excluded=1 - keep.mean(),
+               seas_G=seas, chosen=[names[c] for c in chosen], d=dz)  # d: held-out contrast per analysed row (NaN if not scored)
     fit, ev, fut = s & (yr < N_SEAS - 1), s & (yr == N_SEAS - 1), ~s
     spc = [(fit, ev | fut)]
     Dc, _ = inference.select_capacity(levels(df, spc), y, spc, wk, robust=True)
     rc = scoring.contrast(Dc, [np.c_[Dc[0], inference.clip_to_training(V, spc)[0]]], y, spc, wk, keep=scoring.support_mask(raw[:, :2], spc), robust=True)
     dc = np.full(len(y), np.nan)
     dc[rc.scored] = rc.d
-    out |= dict(G=np.nanmean(dc[ev]), G_target=np.nanmean(dc[fut]))
+    out |= dict(G=np.nanmean(dc[ev]), G_target=np.nanmean(dc[fut]) if fut.any() else np.nan)
     if not full: return out
     hour, ys, gs, ws, ss = df.hour_local.to_numpy()[s], y[s], g[s], wk[s], yr[s]
-    test = lambda **kw: inference.perm_test(D, V[s], ys, sp, ws, hour, keep=keep, units=gs, strata=ss, Cnull=Cnull, clip=.005, robust=True, n_perm=N_NULL, **kw)[1]
-    out |= dict(p_shift=test(shift_min=7, max_shifts=N_NULL),
-                p_crt=test(seed=1, sampler=inference.conditional_sampler(V[s], np.c_[raw[s], ss], gs, hour, strata=ss, groups=ws)))
+    test = lambda n_perm=N_NULL, **kw: inference.perm_test(D, V[s], ys, sp, ws, hour, keep=keep, units=gs, strata=ss, Cnull=Cnull, clip=.005, robust=True, n_perm=n_perm, **kw)[1]
+    if W.get('null_tests', True):
+        out |= dict(p_shift=test(shift_min=7, max_shifts=N_NULL),
+                    p_crt=test(W.get('n_perm', N_NULL), seed=1, sampler=inference.conditional_sampler(V[s], np.c_[raw[s], ss], gs, hour, strata=ss, groups=ws)))
     ok = keep & np.isfinite(r.pred_c[2])
     lb = lambda d: inference.cluster_lower(d[ok], ws[ok])
     R = inference.rff(raw[s], RFF_SCALES + [0.15] * (raw.shape[1] - 5))

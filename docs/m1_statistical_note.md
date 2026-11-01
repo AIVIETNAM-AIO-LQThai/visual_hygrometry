@@ -41,6 +41,8 @@ The test refits the joint model on null visual data V* and compares the observed
 
 **Status (notebook 16).** The CRT controlled Type I (0.02–0.08) in ten fresh nulls, including persistence 0.90–0.97, independent regimes and a camera change; the shift test did not (0.15 at persistence 0.90 and 0.97). This is synthetic evidence that the generator is robust to the structures simulated. It does not show that the sampler describes real images.
 
+**Status (notebook 17).** On the real CPER features it does not: within-day persistence is under-simulated, and the residual scale (by hour and temperature) and heavy tails are not reproduced. By the declared rule it is not suitable, and no real-data Q0 p-value has been computed.
+
 ## 4 · Context adequacy
 
 - **Why it matters.** The KL_C term is the route to false discovery, so every Q0 or G report needs an auditor that would have detected inadequacy.

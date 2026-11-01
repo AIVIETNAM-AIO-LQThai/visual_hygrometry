@@ -6,6 +6,7 @@ That is an interval (`cluster_interval` on cross-fitted or frozen held-out score
 scientifically meaningful threshold is a third, separate comparison of the interval with that threshold.
 """
 import numpy as np
+import pandas as pd
 from scipy import linalg, stats
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import GroupKFold, cross_val_predict
@@ -211,7 +212,7 @@ def conditional_sampler(V, Craw, units, slot, strata=None, groups=None, inner=5)
     never read. Residuals are modelled per stratum (season, camera epoch) as a day-level AR(1) across consecutive units
     plus an AR(1) within each unit (ordered by slot), with innovations correlated across visual columns as observed.
     Valid to the extent that this model of V | C is right; persistence, regime switching and heteroscedasticity outside
-    it are not reproduced. Returns draw(rng) -> V*.
+    it are not reproduced. Returns draw(rng) -> V*, with the fitted mean as draw.f.
     """
     V = np.asarray(V, float).reshape(len(V), -1)
     units, slot = np.asarray(units), np.asarray(slot, float)
@@ -243,6 +244,7 @@ def conditional_sampler(V, Craw, units, slot, strata=None, groups=None, inner=5)
             for t in range(1, len(rows)): w[t] = np.where(same[t - 1], pw * w[t - 1] + np.sqrt(1 - pw ** 2) * zw[t], zw[t])
             out[rows[order]] += u[inv[order]] + w
         return out
+    draw.f = f  # the fitted E^[V | C], so that residuals of observed and simulated V can be compared
     return draw
 
 def rff(raw, scales, n=400, seed=0):
@@ -279,3 +281,40 @@ def repair_gain(C, P, y, splits, groups, ls_c=None, **kw):
     tracks, i.e. the joint model could repair the context. Diagnostic only; never part of the primary contrast."""
     ls_c = crossfit(C, y, splits, groups, **kw)[2] if ls_c is None else ls_c
     return crossfit([np.c_[c, p] for c, p in zip(C if isinstance(C, list) else [C] * len(splits), P)], y, splits, groups, **kw)[2] - ls_c
+def residual_stats(R, units, slot, strata, hour, temp):
+    """Dependence, conditional-variation and shape statistics of visual residuals R (rows x features), per stratum,
+    as a Series indexed by (statistic, feature or feature pair, stratum):
+    day_lag1 / day_lag7 (autocorrelation of day means over consecutive units), within_lag1 (of deviations from the day
+    mean, consecutive slots of one unit), corr (row-level correlation of two features), sd_hour (SD at hour >= 14 over
+    SD at hour <= 9), sd_temp (SD in the upper over the lower temperature tercile), skew, kurt (excess) and tail3 (share
+    of |z| > 3). Used to compare observed residuals with those of `conditional_sampler` draws (`envelope`)."""
+    R = np.asarray(R, float).reshape(len(R), -1)
+    units, slot, strata, hour, temp = map(np.asarray, (units, slot, strata, hour, temp))
+    ac = lambda x, k: np.corrcoef(x[k:], x[:-k])[0, 1]
+    out = {}
+    for st in np.unique(strata):
+        rows = np.flatnonzero(strata == st)
+        ud, inv = np.unique(units[rows], return_inverse=True)
+        X = R[rows]
+        u = np.array([X[inv == j].mean(0) for j in range(len(ud))])
+        o = np.lexsort((slot[rows], inv))
+        w, same = (X - u[inv])[o], inv[o][1:] == inv[o][:-1]
+        lo, hi = np.quantile(temp[rows], [1 / 3, 2 / 3])
+        z = (X - X.mean(0)) / X.std(0)
+        for j in range(X.shape[1]):
+            out |= {('day_lag1', j, st): ac(u[:, j], 1), ('day_lag7', j, st): ac(u[:, j], 7),
+                    ('within_lag1', j, st): np.corrcoef(w[1:, j][same], w[:-1, j][same])[0, 1],
+                    ('sd_hour', j, st): X[hour[rows] >= 14, j].std() / X[hour[rows] <= 9, j].std(),
+                    ('sd_temp', j, st): X[temp[rows] >= hi, j].std() / X[temp[rows] <= lo, j].std(),
+                    ('skew', j, st): (z[:, j] ** 3).mean(), ('kurt', j, st): (z[:, j] ** 4).mean() - 3, ('tail3', j, st): (np.abs(z[:, j]) > 3).mean()}
+        c = np.corrcoef(X.T)
+        out |= {('corr', f'{i}-{j}', st): c[i, j] for i in range(X.shape[1]) for j in range(i + 1, X.shape[1])}
+    return pd.Series(out)
+
+def envelope(obs, sims, level=0.95):
+    """Observed statistics against simulated ones (rows of `sims`, same index as `obs`): the central `level` band of
+    the simulations, a two-sided Monte Carlo p-value and whether the observation lies outside the band."""
+    sims = pd.DataFrame(sims)
+    lo, hi = sims.quantile((1 - level) / 2), sims.quantile((1 + level) / 2)
+    p = np.minimum(1, 2 * np.minimum((sims <= obs).mean() + 1 / (len(sims) + 1), (sims >= obs).mean() + 1 / (len(sims) + 1)))
+    return pd.DataFrame({'obs': obs, 'sim_median': sims.median(), 'lo': lo, 'hi': hi, 'p': p, 'outside': (obs < lo) | (obs > hi)})
