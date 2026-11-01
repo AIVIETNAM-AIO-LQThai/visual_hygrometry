@@ -29,7 +29,6 @@ SD_FLOOR = 0.05
 LOG2PI = np.log(2 * np.pi)
 DEFENSIVE = 0.01  # weight of a wide N(0, 4^2) component in KDE residual densities: bounds the loss on tail rows
 
-
 def gauss_ls(y, mu, sd, censored=None, robust=False):
     """Log predictive density (nats) of y under N(mu, sd^2); rows flagged `censored` are upper bounds scored as log P(Y <= y).
 
@@ -46,17 +45,13 @@ def gauss_ls(y, mu, sd, censored=None, robust=False):
     ls = -0.5 * z ** 2 - np.log(sd) - 0.5 * LOG2PI
     return ls if censored is None else np.where(censored, log_ndtr(z), ls)
 
-
 def gauss_crps(y, mu, sd):
     z = (y - mu) / sd
     return sd * (z * (2 * ndtr(z) - 1) + 2 * norm.pdf(z) - 1 / np.sqrt(np.pi))
 
-
 def pit(y, mu, sd): return ndtr((y - mu) / sd)
 
-
 def coverage(y, mu, sd, level=0.9): return np.mean(np.abs(y - mu) <= norm.ppf(0.5 + level / 2) * sd)
-
 
 def block_bootstrap(x, groups, n_boot=2000, seed=0):
     """Bootstrap distribution of mean(x) resampling whole groups (the independent units) with replacement."""
@@ -64,7 +59,6 @@ def block_bootstrap(x, groups, n_boot=2000, seed=0):
     s, n = np.bincount(inv, weights=x), np.bincount(inv)
     idx = np.random.default_rng(seed).integers(0, len(s), (n_boot, len(s)))
     return s[idx].sum(1) / n[idx].sum(1)
-
 
 def _standardise(X, rows, ctx_cols=0, ctx_pen=1.0):
     """Training-row mean and scale. SDs below SD_FLOOR are floored so a nearly empty column (e.g. an edge spline basis
@@ -74,16 +68,13 @@ def _standardise(X, rows, ctx_cols=0, ctx_pen=1.0):
     s[:ctx_cols] *= np.sqrt(ctx_pen)
     return m, s
 
-
 def ridge(alpha=1.0): return make_pipeline(StandardScaler(), Ridge(alpha=alpha))
-
 
 def _svd(Z):
     """Thin SVD; LAPACK's divide-and-conquer driver can fail to converge on exactly rank-deficient designs (e.g. a
     seasonal basis column held constant by clamping), so the slower QR-iteration driver is used as fallback."""
     try: return np.linalg.svd(Z, full_matrices=False)
     except np.linalg.LinAlgError: return linalg.svd(Z, full_matrices=False, lapack_driver='gesvd')
-
 
 def ridge_oof(X, y, cv, alphas=ALPHAS, **pen):
     """Out-of-fold predictions of standardised ridge for every alpha, shape (n, len(alphas)); one SVD per fold."""
@@ -93,7 +84,6 @@ def ridge_oof(X, y, cv, alphas=ALPHAS, **pen):
         U, sv, Vt = _svd((X[tr] - m) / s)
         P[te] = y[tr].mean() + ((X[te] - m) / s) @ Vt.T @ (sv / (sv ** 2 + alphas[:, None]) * (U.T @ (y[tr] - y[tr].mean()))).T
     return P
-
 
 def ridge_fit(X, y, tr, groups, inner=5, **pen):
     """The default `crossfit` mean model fitted on training rows `tr`, exposed for diagnostics: grouped-CV penalty,
@@ -108,13 +98,11 @@ def ridge_fit(X, y, tr, groups, inner=5, **pen):
     return dict(alpha=ALPHAS[k], intercept=y[tr].mean(), coef=w, mean=m, scale=s, sd=np.sqrt(np.mean((y[tr] - P[:, k]) ** 2)), oof=P[:, k],
                 predict=lambda Xn: y[tr].mean() + ((Xn - m) / s) @ w)
 
-
 def _ridge_predict(X, y, tr, te, alpha, **pen):
     m, s = _standardise(X, tr, **pen)
     Z = (X[tr] - m) / s
     w = np.linalg.solve(Z.T @ Z + alpha * np.eye(Z.shape[1]), Z.T @ (y[tr] - y[tr].mean()))
     return y[tr].mean() + ((X[te] - m) / s) @ w
-
 
 def _tobit(Z, y, cens, alpha, th=None):
     """Penalised left-censored Gaussian MLE on standardised Z; returns (b0, w, log sd). Censored y are upper bounds."""
@@ -130,12 +118,10 @@ def _tobit(Z, y, cens, alpha, th=None):
         return -ll.sum() + 0.5 * alpha * w @ w, -np.r_[gmu.sum(), Z.T @ gmu - alpha * w, gls.sum()]
     return minimize(f, th, jac=True, method='L-BFGS-B').x
 
-
 def _censored_sd(r, cens):
     """MLE of a common SD for residuals r = y - mu with left-censored rows."""
     f = lambda ls: -np.where(cens, log_ndtr(r / np.exp(ls)), -0.5 * (r / np.exp(ls)) ** 2 - ls).sum()
     return np.exp(minimize_scalar(f, bounds=(np.log(r.std()) - 5, np.log(r.std()) + 5), method='bounded').x)
-
 
 def _crossfit_tobit(XS, y, splits, groups, cens, inner, robust=False, alphas=ALPHAS[::2]):
     mu, sd, ls = (np.full(len(y), np.nan) for _ in range(3))
@@ -156,7 +142,6 @@ def _crossfit_tobit(XS, y, splits, groups, cens, inner, robust=False, alphas=ALP
         mu[te], sd[te] = th[0] + ((X[te] - m) / s) @ th[1:-1], _censored_sd(yt - oof[:, k], ct)
         ls[te] = gauss_ls(y[te], mu[te], sd[te], cens[te], robust)
     return mu, sd, ls
-
 
 def crossfit(XS, y, splits, groups, model=None, var='oof', resid='gauss', inner=5, censored=None, ctx_cols=0, ctx_pen=1.0, robust=False):
     """Out-of-fold predictive distribution for the test rows of every (train, test) split: (mu, sd, log score).
@@ -205,7 +190,6 @@ def crossfit(XS, y, splits, groups, model=None, var='oof', resid='gauss', inner=
         else:
             ls[te] = gauss_ls(y[te], mu[te], sd[te], robust=robust)
     return mu, sd, ls
-
 
 def crossfit_binned(XS, y, splits, groups, edges, Cs=(0.01, 0.1, 1.0, 10.0), inner=5, censored=None, floor=1e-12):
     """Out-of-fold multinomial-logistic predictive distribution over bins B = #(edges < y): (probabilities, B, log score).
@@ -256,7 +240,6 @@ class Contrast:
         a = (1 - level) / 2
         return np.quantile(block_bootstrap(self.d, self.groups, n_boot, seed), [a, 1 - a])
 
-
 def support_mask(R, splits, q=0.005):
     """Rows scored in some split whose raw context R lies inside that split's training quantile box [q, 1 - q] per column.
 
@@ -268,7 +251,6 @@ def support_mask(R, splits, q=0.005):
         lo, hi = np.quantile(R[tr], [q, 1 - q], axis=0)
         keep[te] = np.all((R[te] >= lo) & (R[te] <= hi), axis=1)
     return keep
-
 
 def contrast(Xc, Xvc, y, splits, groups, family='gauss', keep=None, **kw):
     """Held-out log-score improvement of q(D|V,C) over q(D|C), both fitted identically by the chosen family.

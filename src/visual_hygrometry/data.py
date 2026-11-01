@@ -1,19 +1,15 @@
 """Schema access, contract validation and causal feature construction."""
 import json
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import SplineTransformer
 
 ROOT = Path(__file__).resolve().parents[2]
 
-
 def load_schema(name='sample'): return json.loads((ROOT / 'schemas' / f'{name}.schema.json').read_text())
 
-
 def ns(t): return pd.DatetimeIndex(t).as_unit('ns').asi8
-
 
 def validate(df, schema):
     """Row-level contract violations as a boolean frame (one column per failed rule, only rules that fail).
@@ -39,7 +35,6 @@ def validate(df, schema):
     out = pd.DataFrame(bad, index=df.index)
     return out.loc[:, out.any()]
 
-
 def causal_mean(t, x, at, window):
     """Mean of finite x over readings with t in (at - window, at]; NaN when the window holds none. Never reads past `at`."""
     t, at, w = ns(t), ns(at), pd.Timedelta(window).value
@@ -51,12 +46,10 @@ def causal_mean(t, x, at, window):
     n = cn[hi] - cn[lo]
     return np.where(n > 0, (cs[hi] - cs[lo]) / np.maximum(n, 1), np.nan)
 
-
 def clock(time_utc, utc_offset_min):
     """Local standard-time hour and day of year (no DST)."""
     local = time_utc + pd.to_timedelta(utc_offset_min, unit='min')
     return pd.DataFrame({'hour_local': local.dt.hour + local.dt.minute / 60 + local.dt.second / 3600, 'doy': local.dt.day_of_year}, index=time_utc.index)
-
 
 def solar(doy, hour_local, lat, lon, utc_offset_h):
     """Solar geometry from local standard time (Spencer 1971 declination and equation of time; ~0.5 min, ~0.1 deg).
@@ -76,13 +69,11 @@ def solar(doy, hour_local, lat, lon, utc_offset_h):
     return pd.DataFrame({'solar_decl_deg': np.degrees(decl), 'solar_hour_angle_deg': np.degrees(ha), 'solar_elev_deg': elev,
                          'solar_dayfrac': (st - 12 + h0) / (2 * h0)}, index=getattr(hour_local, 'index', None))
 
-
 def fourier(x, period, k, name):
     """Fixed sine/cosine basis with k harmonics; data-independent, so it cannot leak test-set statistics."""
     w = 2 * np.pi * np.asarray(x, float)[:, None] * np.arange(1, k + 1) / period
     cols = [f'{name}_{f}{j}' for f in 'sc' for j in range(1, k + 1)]
     return pd.DataFrame(np.hstack([np.sin(w), np.cos(w)]), columns=cols, index=getattr(x, 'index', None))
-
 
 def spline(x, knots, name):
     """Cubic B-spline basis on a fixed knot grid (linear beyond it); data-independent, so it cannot leak test statistics."""

@@ -14,15 +14,12 @@ from .synthetic import Node
 
 HOUR = ['hour_s1', 'hour_c1', 'hour_s2', 'hour_c2']
 
-
 def cyc(a, b, peak=15): return lambda h: a + b * np.cos(2 * np.pi * (h - peak) / 24)
-
 
 def gauss_world(gamma=.162, beta=.4, t_sd=3, r_sd=2, r_day=.5, r_ar=.9, v_day=.3, v_ar=.5):
     """Diurnal T, moisture residual r, D = mean(h) + beta T + r (D ~ 7 + 4 cos(hour) K), visual cue gamma r + noise."""
     return {'temp_cond_c': Node(sd=t_sd, mean=cyc(20, 5), day=.7, ar=.95), 'dres': Node(sd=r_sd, day=r_day, ar=r_ar),
             'd_ref_k': Node({'temp_cond_c': beta, 'dres': 1}, mean=cyc(7 - 20 * beta, 4 - 5 * beta)), 'vis_moist': Node({'dres': gamma}, 1.0, day=v_day, ar=v_ar)}
-
 
 def rad_world(err_sd=1.0):
     """Shared radiation-biased unit: label D and conditioning T both carry err; the image sees the irradiance anomaly."""
@@ -30,7 +27,6 @@ def rad_world(err_sd=1.0):
             'd_true': Node({'t_true': .4, 'dres': 1}, mean=cyc(-1, 2)), 'cloud': Node(sd=1, day=.8, ar=.9),
             'err': Node({'cloud': err_sd}), 'temp_cond_c': Node({'t_true': 1, 'err': 1}), 'd_ref_k': Node({'d_true': 1, 'err': 1}),
             'vis_bright': Node({'cloud': 1}, .3)}
-
 
 def regime(sds, p_humid=.5):
     """Day-level regime scales the moisture residual (SD sds[1] humid with probability p_humid, sds[0] dry); mean unchanged."""
@@ -41,7 +37,6 @@ def regime(sds, p_humid=.5):
         return df
     return f
 
-
 def frame(W, n_days, seed):
     """Simulate a world, attach the fixed hour basis, apply its non-linear modification, label sensor ids."""
     df = synthetic.simulate(W['spec'], n_days, W.get('per_day', 48), W.get('hours', (6, 18)), seed=seed)
@@ -49,18 +44,15 @@ def frame(W, n_days, seed):
     df.attrs['dres_sd'] = W['spec']['dres'].sd if 'dres' in W['spec'] else 1
     return W['modify'](df, np.random.default_rng(seed + 7)) if 'modify' in W else df
 
-
 def iid(W):
     """Same marginal per-row distribution with independent rows (day = ar = 0), for Monte-Carlo truths."""
     return W | {'spec': {k: replace(n, day=0.0, ar=0.0) for k, n in W['spec'].items()}}
-
 
 def add_context_basis(df, knots):
     """Flexible E2 context: fixed-knot cubic spline in T and products of T with the hour Fourier basis."""
     S = data.spline(df.temp_cond_c, knots, 'temp_spl')
     X = pd.DataFrame({f'hourxtemp_{c[5:]}': df[c] * (df.temp_cond_c - 20) for c in HOUR}, index=df.index)
     return pd.concat([df, S, X], axis=1), HOUR + list(S) + list(X)
-
 
 def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False, solar=False):
     """Nested E2 context bases of increasing capacity, all fixed in advance (no fitting, no visual input).
@@ -95,14 +87,12 @@ def add_context_levels(df, knots, doy_knots, fine_doy_knots, hour_season=False, 
 
 SUN_KNOTS = np.arange(-10, 71, 10.0)  # solar elevation, degrees
 
-
 def _solar_basis(df, t):
     """Solar context terms from the data.solar columns of df (computed from the true date, so day-of-year clamping
     never alters them); t = temp_cond_c - 20."""
     E = data.spline(df.solar_elev_deg, SUN_KNOTS, 'sun_spl')
     H = data.fourier(df.solar_hour_angle_deg, 360, 2, 'ha').mul(df.solar_decl_deg / 23.44, axis=0).rename(columns=lambda c: f'haxdecl_{c[3:]}')
     return pd.concat([E, E.mul(t, axis=0).rename(columns=lambda c: f'sunxtemp_{c[7:]}'), H, data.fourier(df.solar_dayfrac, 1, 2, 'dayfrac')], axis=1)
-
 
 def split_levels(df, splits, knots, doy_knots, fine_doy_knots, extra=(), hour_season=False, solar=False):
     """Context levels for every split with day of year clamped to that split's training rows, so the seasonal bases

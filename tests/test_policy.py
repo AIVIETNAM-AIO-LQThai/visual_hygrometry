@@ -7,7 +7,6 @@ from visual_hygrometry.policy import PolicyError, select, select_sci
 
 DEPLOY = ['co', 'ta', 'ctx', 'teacher']
 
-
 @pytest.mark.parametrize('setting', DEPLOY)
 def test_label_canary_refused_everywhere(samples, setting):
     """A label-equivalent column under an innocuous name never reaches a model, whichever way it is offered."""
@@ -41,14 +40,12 @@ def test_humidity_coded_shortcuts_refused(samples, col):
         with pytest.raises(PolicyError, match='forbidden'):
             select(df, s, cols=['vis_haze', col])
 
-
 def test_lineage_overrides_declared_role(samples, monkeypatch):
     """A field declared 'met' but derived from RH (e.g. a lagged label) is refused by lineage."""
     spec = {'type': 'number', 'x-role': 'met', 'x-derived-from': ['td_ref_c']}
     monkeypatch.setitem(policy.CONTRACT.fields, 'rh_lag_1h', spec)
     with pytest.raises(PolicyError, match='derived from label'):
         select(samples.assign(rh_lag_1h=0.0), 'ctx', cols=['vis_haze', 'rh_lag_1h'])
-
 
 def test_role_matrix(samples):
     """CO sees only visual/acquisition fields; temperature is TA and above; clock is CTX and above."""
@@ -59,12 +56,10 @@ def test_role_matrix(samples):
         with pytest.raises(PolicyError, match='not permitted'):
             select(samples, s, cols=[col])
 
-
 def test_teacher_is_training_only(samples):
     select(samples, 'teacher', phase='train')
     with pytest.raises(PolicyError, match='training-only'):
         select(samples, 'teacher', phase='infer')
-
 
 def test_shared_sensor_requires_explicit_permission(samples):
     df = samples.assign(cond_sensor_id='hmp_a')
@@ -72,7 +67,6 @@ def test_shared_sensor_requires_explicit_permission(samples):
         select(df, 'ta')
     assert select(df, 'ta', allow_shared_sensor=True)[2]['shared_sensor'] == 1.0
     select(df, 'co')  # no temperature features, no coupling
-
 
 def test_sci_contrast_is_matched(samples):
     Xc, Xvc, y, info = select_sci(samples, 'e2', ctx=['hour_local', 'temp_cond_c'], vis=['vis_haze'])
@@ -84,11 +78,9 @@ def test_sci_contrast_is_matched(samples):
     with pytest.raises(PolicyError):  # context field passed as visual
         select_sci(samples, 'e2', ctx=['hour_local'], vis=['temp_cond_c'])
 
-
 def test_legitimate_features_pass_audit(samples):
     _, _, info = select(samples, 'ctx')
     assert max(info['eta2'].values()) < 0.95
-
 
 def test_eta2_ignores_row_order_and_keeps_ties_together():
     rng = np.random.default_rng(3)
@@ -99,7 +91,6 @@ def test_eta2_ignores_row_order_and_keeps_ties_together():
     groups = [y[x == v] for v in range(3)]
     exact = sum(len(g) * (g.mean() - y.mean()) ** 2 for g in groups) / (len(y) * y.var())
     assert policy.eta2(x, y) == pytest.approx(exact, abs=1e-12)  # one bin per distinct value
-
 
 def test_context_projection_is_sci_context_only(samples):
     df = samples.assign(ctxproj_haze=0.1, temp_spl0=0.5, hourxtemp_s1=1.0)
@@ -113,7 +104,6 @@ def test_context_projection_is_sci_context_only(samples):
     with pytest.raises(PolicyError):  # temperature-derived bases stay out of E1
         select_sci(df, 'e1', ctx=['hour_local', 'temp_spl0'], vis=['vis_haze'])
 
-
 def test_flexible_context_basis_is_registered_for_e2_only():
     from visual_hygrometry import worlds
     df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 5, seed=0)
@@ -122,7 +112,6 @@ def test_flexible_context_basis_is_registered_for_e2_only():
     assert Xc.shape[1] == len(ctx) == 4 + 15 + 4
     with pytest.raises(PolicyError):
         select_sci(df, 'e1', ctx, ['vis_moist'])
-
 
 def test_acquisition_state_only_in_the_acquisition_control(samples):
     df = samples.assign(calib_exposure=np.random.default_rng(4).normal(size=len(samples)))
@@ -133,7 +122,6 @@ def test_acquisition_state_only_in_the_acquisition_control(samples):
     for s in DEPLOY:
         with pytest.raises(PolicyError):
             select(df, s, cols=['vis_haze', 'calib_exposure'])
-
 
 def test_context_levels_are_nested_and_illumination_only_in_e2_illum():
     from visual_hygrometry import data, worlds
@@ -151,7 +139,6 @@ def test_context_levels_are_nested_and_illumination_only_in_e2_illum():
     _, Xvc, _, _ = select_sci(df.assign(calib_exposure=1.0), 'e2_illum_acq_control', lv['L1'] + ill, ['calib_exposure'])
     assert Xvc.columns[-1] == 'calib_exposure'
 
-
 def test_hour_season_level_is_optional_registered_and_nested():
     from visual_hygrometry import worlds
     df = worlds.frame({'spec': worlds.gauss_world(), 'vis': ['vis_moist']}, 5, seed=0).assign(doy=lambda d: 170 + d.day)
@@ -161,7 +148,6 @@ def test_hour_season_level_is_optional_registered_and_nested():
     assert set(lv['L3']) < set(lv['L4']) and any(c.startswith('hourxdoy_') for c in lv['L4'])
     Xc, _, _, _ = select_sci(df4, 'e2', lv['L4'], ['vis_moist'])
     assert Xc.shape[1] == len(lv['L4'])
-
 
 def test_solar_levels_are_registered_nested_and_survive_season_clamping():
     from visual_hygrometry import data, worlds

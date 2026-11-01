@@ -5,7 +5,6 @@ import pytest
 
 from visual_hygrometry import policy, suite, worlds
 
-
 def test_records_have_seasons_solar_geometry_and_pass_the_contract():
     W = {'spec': suite.spec(gamma=.1), 'vis': ['vis_moist']}
     df = suite.make(W, 2, seed=3)
@@ -17,11 +16,9 @@ def test_records_have_seasons_solar_geometry_and_pass_the_contract():
     noon = df[(df.hour == 12) & (df.year == 0)]
     assert np.corrcoef(noon.solar_elev_deg, noon.temp_cond_c)[0, 1] > 0  # the climate heats with the sun
 
-
 def test_world_specs_pickle_for_parallel_workers():
     sp = pickle.loads(pickle.dumps(suite.spec(slow=(1, .5))))
     assert sp['temp_cond_c'].mean(np.array([6.0, 12.0]))[0] == 16.0
-
 
 def test_shared_regime_truth_is_zero_without_a_shared_shift_and_matches_gaussian_limit():
     assert abs(suite.truth_shared_regime(.5, (0, 0), (2, 2), (0, 0), n=200_000)) < 2e-3

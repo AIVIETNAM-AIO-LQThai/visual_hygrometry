@@ -26,7 +26,6 @@ TEMP_ROLES = {'temp_cond', 'temp_hist'}
 class PolicyError(ValueError):
     pass
 
-
 class Contract:
     def __init__(self, schema):
         self.fields = schema['properties']
@@ -57,12 +56,10 @@ class Contract:
             elif self.lineage(c) & self.labels: out[c] = f'derived from label field(s) {sorted(self.lineage(c) & self.labels)}'
         return out
 
-
 def load_settings(path=ROOT / 'configs' / 'inference_settings.yaml'): return yaml.safe_load(Path(path).read_text())
 
 
 CONTRACT, SETTINGS = Contract(load_schema('sample')), load_settings()
-
 
 def eta2(x, y, bins=50):
     """Correlation ratio: share of var(y) explained by quantile bins of x (1 = y is a function of x).
@@ -75,7 +72,6 @@ def eta2(x, y, bins=50):
     b = np.minimum(np.floor((pd.Series(x).rank(method='average').to_numpy() - 0.5) * nb / len(x)), nb - 1).astype(int)
     m = np.bincount(b, weights=y)[b] / np.bincount(b)[b]
     return np.var(m) / np.var(y)
-
 
 def _check(df, cols, roles, target, targets, allow_shared_sensor, audit, where):
     bad = CONTRACT.violations(cols, roles)
@@ -93,7 +89,6 @@ def _check(df, cols, roles, target, targets, allow_shared_sensor, audit, where):
     if hits: raise PolicyError(f'{where}: near label-equivalent feature(s) {hits} (eta^2 >= {audit}); declare/explain before use')
     return info
 
-
 def select(df, setting, cols=None, target='d_ref_k', phase='train', allow_shared_sensor=False, audit=None):
     """(X, y, info) for a deployment setting or the teacher. cols=None takes every permitted contract field present."""
     cfg = SETTINGS['settings'][setting]
@@ -102,7 +97,6 @@ def select(df, setting, cols=None, target='d_ref_k', phase='train', allow_shared
     cols = [c for c in df if not CONTRACT.violations([c], roles)] if cols is None else list(cols)
     info = _check(df, cols, roles, target, cfg['targets'], allow_shared_sensor, audit or SETTINGS['label_equivalence_eta2'], setting)
     return df[cols], df[target], info | {'setting': setting, 'cols': cols, 'unregistered': [c for c in df if CONTRACT.spec(c) is None]}
-
 
 def select_sci(df, level, ctx, vis, target='d_ref_k', allow_shared_sensor=False, audit=None):
     """(Xc, Xvc, y, info) for the matched contrast q(D|V,C) vs q(D|C): identical context columns, visual columns added."""

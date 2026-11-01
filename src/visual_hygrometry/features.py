@@ -13,18 +13,15 @@ REGIONS = {  # (x0, y0, x1, y1) at 1296 x 960; sky right of the overlay, far ban
     'CPER': {'sky': (860, 0, 1296, 90), 'far': (0, 110, 1296, 200), 'near': (0, 600, 1296, 960)}}
 NAMES = ['vis_sky_lum', 'vis_sky_br', 'vis_far_contrast', 'vis_near_contrast', 'vis_contrast_ratio', 'vis_far_sat', 'vis_near_gcc', 'vis_near_dark', 'vis_far_sharp']
 
-
 def masked(rgb):
     """Float RGB in [0, 1] with every overlay pixel set to NaN."""
     a = np.asarray(rgb, float) / 255
     for x0, y0, x1, y1 in OVERLAY: a[y0:y1, x0:x1] = np.nan
     return a
 
-
 def _crop(a, box):
     x0, y0, x1, y1 = box
     return a[y0:y1, x0:x1]
-
 
 def scene_features(rgb, regions):
     """The nine predefined features of one 1296 x 960 RGB frame."""
@@ -38,7 +35,6 @@ def scene_features(rgb, regions):
     return dict(zip(NAMES, [np.nanmean(_crop(lum, regions['sky'])), np.nanmean(sky[..., 2]) / np.nanmean(sky[..., 0]), rms(lf), rms(ln), rms(lf) / rms(ln),
                             np.nanmean(np.where(mx > 0, (mx - mn) / np.where(mx > 0, mx, 1), 0)), np.nanmean(near[..., 1] / near.sum(axis=2)),
                             np.nanpercentile(ln, 10), np.nanvar(lap)]))
-
 
 def frame_features(path, site):
     """Features of one frame plus QC: `qc_sky_clip`, the share of sky-band pixels with a channel at 254 or above

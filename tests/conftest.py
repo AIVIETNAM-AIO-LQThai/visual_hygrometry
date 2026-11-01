@@ -4,7 +4,6 @@ import pytest
 
 from visual_hygrometry import thermo
 
-
 @pytest.fixture
 def samples():
     """Ten days of contract-shaped rows with an independent conditioning thermometer and two visual features."""

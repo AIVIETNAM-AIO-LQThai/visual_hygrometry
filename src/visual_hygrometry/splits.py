@@ -9,12 +9,10 @@ import pandas as pd
 
 from .data import ns
 
-
 def blocks(time_utc, unit='D', utc_offset_min=0):
     """Calendar block per sample in local standard time: 'D' day, 'W' week."""
     local = (time_utc + pd.to_timedelta(utc_offset_min, unit='min')).dt.tz_localize(None)
     return local.dt.to_period(unit).astype(str).to_numpy()
-
 
 def assign_folds(block, k, how='interleaved', seed=0):
     """Fold id per sample with every block wholly inside one fold.
@@ -29,7 +27,6 @@ def assign_folds(block, k, how='interleaved', seed=0):
     f = {'contiguous': np.arange(n) * k // n, 'interleaved': np.arange(n) % k, 'random': np.random.default_rng(seed).permutation(n) % k}[how]
     return f[np.searchsorted(ub, block)]
 
-
 def purge(train, test, start, end, embargo='0s'):
     """Training mask without samples whose [start, end] comes within `embargo` of any test interval."""
     s, e, emb = ns(start), ns(end), pd.Timedelta(embargo).value
@@ -42,14 +39,12 @@ def purge(train, test, start, end, embargo='0s'):
     out[np.flatnonzero(train)[hit]] = False
     return out
 
-
 def chrono(block, frac=0.6, gap=1):
     """(fit, evaluate) masks: the earliest `frac` of the ordered blocks fit, `gap` blocks are purged, the rest evaluate."""
     ub = np.unique(block)
     k = int(round(frac * len(ub)))
     if k < 1 or k + gap >= len(ub): raise ValueError('chronological split leaves no fit or no evaluation blocks')
     return np.isin(block, ub[:k]), np.isin(block, ub[k + gap:])
-
 
 def kfold(fold, start=None, end=None, embargo='0s'):
     """(train, test) boolean masks per fold; purged when dependency intervals are given."""

@@ -13,7 +13,6 @@ from sklearn.model_selection import GroupKFold, cross_val_predict
 from . import scoring
 from .scoring import _standardise, crossfit
 
-
 def cluster_se(d, groups):
     """Mean of row scores and its SE treating whole groups as the independent units (ratio estimator): (mean, se, G)."""
     _, inv = np.unique(groups, return_inverse=True)
@@ -21,18 +20,15 @@ def cluster_se(d, groups):
     G, m = len(s), s.sum() / n.sum()
     return m, np.sqrt(G / (G - 1) * np.sum((s - m * n) ** 2)) / n.sum(), G
 
-
 def cluster_interval(d, groups, level=0.95):
     m, se, G = cluster_se(d, groups)
     q = stats.t.ppf(0.5 + level / 2, G - 1)
     return m - q * se, m + q * se
 
-
 def cluster_lower(d, groups, level=0.95):
     """One-sided lower confidence bound (t with G - 1 df)."""
     m, se, G = cluster_se(d, groups)
     return m - stats.t.ppf(level, G - 1) * se
-
 
 def donor_sampler(units, slot, strata=None):
     """Draws a donor row for every row: whole units (days, weeks) are permuted, within strata if given, and each row
@@ -60,7 +56,6 @@ def donor_sampler(units, slot, strata=None):
         return src
     return draw
 
-
 def shift_configs(units, strata=None, shift_min=7):
     """Cyclic shifts k used by the shift null: one k applied to every stratum, k in [shift_min, n_min - shift_min] with
     n_min the shortest stratum (in units). Every configuration is distinct, none is the identity, and each stratum is
@@ -71,7 +66,6 @@ def shift_configs(units, strata=None, shift_min=7):
     ks = list(range(shift_min, n_min - shift_min + 1))
     if not ks: raise ValueError(f'shortest stratum has {n_min} units: no cyclic shift of at least {shift_min} is available')
     return ks
-
 
 def select_capacity(levels, y, splits, groups, inner=5, **kw):
     """Context design per split, chosen among nested `levels` (smallest first; each a full-length matrix or a list
@@ -89,13 +83,11 @@ def select_capacity(levels, y, splits, groups, inner=5, **kw):
         out.append(lv[chosen[-1]])
     return out, chosen
 
-
 def clip_to_training(V, splits, q=0.005):
     """Per split, V with every column clipped to its training rows' [q, 1 - q] quantiles, so a fitted visual
     coefficient is never extrapolated beyond the image range it was estimated on (part of the joint model)."""
     V = np.asarray(V, float)
     return [np.clip(V, *np.quantile(V[tr], [q, 1 - q], axis=0)) for tr, _ in splits]
-
 
 def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units=None, strata=None, Cnull=None, shift_min=None, clip=None, sampler=None, max_shifts=None, **kw):
     """Conditional permutation test of H0: V independent of D given C, refitting the joint model for every draw.
@@ -143,7 +135,6 @@ def perm_test(C, V, y, splits, groups, slot, n_perm=39, seed=0, keep=None, units
     n_perm = len(null)
     return obs, (1 + np.sum(null >= obs)) / (1 + n_perm), null
 
-
 def hac_interval(d, groups, level=0.95, lag=None):
     """Interval for the mean of row scores from the series of group (day) means in group order, with a Newey-West
     (Bartlett) long-run variance; lag defaults to floor(4 (G/100)^(2/9)). For serially dependent groups."""
@@ -158,16 +149,13 @@ def hac_interval(d, groups, level=0.95, lag=None):
     q = stats.t.ppf(0.5 + level / 2, G - 1)
     return m - q * se, m + q * se
 
-
 def _lstsq(Z, A):
     """Least-squares coefficients; falls back to pivoted QR when the SVD-based driver fails on a rank-deficient Z
     (the fitted projection Z @ coef is the same for every least-squares solution)."""
     try: return np.linalg.lstsq(Z, A, rcond=None)[0]
     except np.linalg.LinAlgError: return linalg.lstsq(Z, A, lapack_driver='gelsy')[0]
 
-
 def boost(): return HistGradientBoostingRegressor(max_iter=100, learning_rate=0.1)
-
 
 def project(C, V, groups, inner=5):
     """Cross-fitted E[V | C] by gradient boosting, one column per visual feature; labels are never used.
@@ -177,7 +165,6 @@ def project(C, V, groups, inner=5):
     """
     cv = list(GroupKFold(inner).split(C, groups=groups))
     return np.column_stack([cross_val_predict(boost(), C, v, cv=cv) for v in np.asarray(V, float).T])
-
 
 def project_splits(C, V, splits, groups, inner=5):
     """Train-only E[V | C] for every split: a full-length array per split whose training rows hold out-of-fold
@@ -191,7 +178,6 @@ def project_splits(C, V, splits, groups, inner=5):
         P[te] = np.column_stack([boost().fit(C[tr], v[tr]).predict(C[te]) for v in V.T])
         out.append(P)
     return out
-
 
 def adequacy(C, y, splits, groups, raw, Vhat=None, level=0.95, ls_flex=None):
     """Context-adequacy diagnostics: one-sided lower bounds of held-out log-score gains over the ridge context model q(D|C).
@@ -210,7 +196,6 @@ def adequacy(C, y, splits, groups, raw, Vhat=None, level=0.95, ls_flex=None):
         out['proj'] = cluster_lower(d[ok], groups[ok], level)
     return out
 
-
 def _ar1(x):
     """Lag-1 autocorrelation of an ordered series with Kendall's first-order small-sample correction r + (1 + 3r)/n,
     clipped to [0, 0.995]."""
@@ -218,7 +203,6 @@ def _ar1(x):
     if len(x) < 3: return 0.0
     r = x[1:] @ x[:-1] / max(x @ x, 1e-12)
     return float(np.clip(r + (1 + 3 * r) / len(x), 0, 0.995))
-
 
 def conditional_sampler(V, Craw, units, slot, strata=None, groups=None, inner=5):
     """Null generator for a conditional randomisation test: V* = E^[V | C] + a simulated residual process.
@@ -261,7 +245,6 @@ def conditional_sampler(V, Craw, units, slot, strata=None, groups=None, inner=5)
         return out
     return draw
 
-
 def rff(raw, scales, n=400, seed=0):
     """Random Fourier features of the raw context (Gaussian kernel with per-variable length scales). Fixed seed and no
     labels; long scales for time-index variables (e.g. 20 days for day of year) keep them from following weather."""
@@ -269,14 +252,12 @@ def rff(raw, scales, n=400, seed=0):
     W, b = rng.standard_normal((raw.shape[1], n)), rng.uniform(0, 2 * np.pi, n)
     return np.sqrt(2 / n) * np.cos((np.asarray(raw, float) / np.asarray(scales, float)) @ W + b)
 
-
 def challenger(C, R, y, splits, groups, **kw):
     """Context-only adequacy challenger on the same held-out splits as the contrast: the audited context design plus
     smooth non-linear functions of the context (`rff` features R), one ridge with the penalty chosen by grouped inner CV.
     Returns held-out (mu, sd, log score). A boosted residual correction was rejected: trees on day of year memorise
     persistent weather and lose on held-out weeks (notebook 14 §2)."""
     return crossfit([np.c_[c, R] for c in C] if isinstance(C, list) else np.c_[C, R], y, splits, groups, **kw)
-
 
 def smooth_projection_splits(X, V, splits, groups, inner=5):
     """Train-only ridge projection of V on a fixed design X (e.g. the richest context basis plus `rff` features): inner
@@ -291,7 +272,6 @@ def smooth_projection_splits(X, V, splits, groups, inner=5):
             P[te, k] = scoring.ridge_fit(X, V[:, k], tr, groups, inner)['predict'](X[te])
         out.append(P)
     return out
-
 
 def repair_gain(C, P, y, splits, groups, ls_c=None, **kw):
     """Secondary adequacy diagnostic: held-out log-score gain from adding the train-only projection P of V on the context

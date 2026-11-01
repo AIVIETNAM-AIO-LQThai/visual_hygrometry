@@ -24,14 +24,12 @@ class Node:
     ar: float = 0.0                             # AR(1) coefficient of the within-day part, per sample step
     persist: float = 0.0                        # AR(1) coefficient of the day-level part across consecutive days
 
-
 def _ar1(n_days, per_day, phi, rng):
     z = rng.standard_normal((n_days, per_day))
     w = np.empty_like(z)
     w[:, 0] = z[:, 0]
     for t in range(1, per_day): w[:, t] = phi * w[:, t - 1] + np.sqrt(1 - phi ** 2) * z[:, t]
     return w.ravel()
-
 
 def simulate(spec, n_days, per_day=48, hours=(6, 18), seed=0):
     """One row per sample: day index, local hour and every node of `spec` (given in topological order)."""
@@ -46,7 +44,6 @@ def simulate(spec, n_days, per_day=48, hours=(6, 18), seed=0):
         cols[k] = (n.mean(h) if n.mean else 0) + sum(c * cols[p] for p, c in n.parents.items()) + n.sd * e
     return pd.DataFrame(cols)
 
-
 def _system(spec):
     names = list(spec)
     B = np.zeros((len(names),) * 2)
@@ -55,11 +52,9 @@ def _system(spec):
     A = np.linalg.inv(np.eye(len(names)) - B)
     return names, A, A @ np.diag([n.sd ** 2 for n in spec.values()]) @ A.T
 
-
 def covariance(spec):
     names, _, S = _system(spec)
     return pd.DataFrame(S, names, names)
-
 
 def cmi(spec, y, x, given=()):
     """Exact I(y; x | given, hour) in nats; y, x, given are node names or lists of names."""
@@ -67,7 +62,6 @@ def cmi(spec, y, x, given=()):
     y, x, g = ([v] if isinstance(v, str) else list(v) for v in (y, x, given))
     ld = lambda c: np.linalg.slogdet(S.loc[c, c].to_numpy())[1] if c else 0.0
     return 0.5 * (ld(y + g) + ld(x + g) - ld(g) - ld(x + y + g))
-
 
 def conditional(spec, df, y, given=()):
     """Exact Gaussian p(y | given, hour) for every row of a simulated frame, as (mu, sd) arrays (oracle predictive)."""

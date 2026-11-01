@@ -17,14 +17,11 @@ from .data import ROOT
 API, PHENO = 'https://data.neonscience.org/api/v0', 'https://phenocam.nau.edu'
 RAW = ROOT / 'data' / 'raw'
 
-
 def token(path=ROOT / '.env'):
     return dict(l.split('=', 1) for l in Path(path).read_text().splitlines() if '=' in l)['NEON_TOKEN'].strip()
 
-
 def files(product, site, month, package='basic'):
     """File records (name, url, size, md5) of one NEON product, site, month and data package.
-
     Without a package filter the API lists basic and expanded files together, and their readme/variables files share
     names but differ in content.
     """
@@ -32,9 +29,7 @@ def files(product, site, month, package='basic'):
     r.raise_for_status()
     return r.json()['data']['files']
 
-
 def sha256(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
 
 def fetch(url, dest, pause=0.0, missing_ok=False, retries=4):
     """Download url to dest unless it exists; returns (path, sha256), or (None, None) for a 404 when missing_ok.
@@ -55,7 +50,6 @@ def fetch(url, dest, pause=0.0, missing_ok=False, retries=4):
         time.sleep(pause)
     return dest, sha256(dest)
 
-
 def neon_files(product, site, month, pattern, package='basic'):
     """Download the files of a product-month-package whose names match `pattern`; returns a manifest."""
     rows = []
@@ -66,21 +60,17 @@ def neon_files(product, site, month, pattern, package='basic'):
             rows.append({'product': product, 'package': package, 'name': f['name'], 'bytes': path.stat().st_size, 'sha256': h, 'path': path})
     return pd.DataFrame(rows).drop_duplicates('name')
 
-
 def camera_day(sitename, day):
     """Image basenames (without extension) listed for one camera-day on the PhenoCam browse page."""
     r = requests.get(f'{PHENO}/webcam/browse/{sitename}/{day:%Y/%m/%d}/', timeout=60)
     r.raise_for_status()
     return sorted(set(re.findall(rf'/data/archive/{re.escape(sitename)}/\d{{4}}/\d{{2}}/({re.escape(sitename)}_\d{{4}}_\d{{2}}_\d{{2}}_\d{{6}})\.jpg', r.text)))
 
-
 def archive_url(sitename, base, ext): return f'{PHENO}/data/archive/{sitename}/{base[-17:-13]}/{base[-12:-10]}/{base}.{ext}'
-
 
 def parse_meta(text):
     """key=value camera settings; overlay_text quotes kept verbatim."""
     return dict(l.split('=', 1) for l in text.splitlines() if '=' in l)
-
 
 TABLES = {'rh': ('DP1.00098.001', 'RH_1min'), 'taat': ('DP1.00003.001', 'TAAT_1min'), 'rad': ('DP1.00023.001', 'SLRNR_1min'), 'wind': ('DP1.00001.001', '2DWSD_2min')}
 COLUMNS = {'rh': {'RHMean': 'rh', 'RHExpUncert': 'rh_unc', 'RHMaximum': 'rh_max', 'RHVariance': 'rh_var', 'RHFinalQF': 'rh_qf', 'tempRHMean': 't_probe',
@@ -89,14 +79,12 @@ COLUMNS = {'rh': {'RHMean': 'rh', 'RHExpUncert': 'rh_unc', 'RHMaximum': 'rh_max'
            'rad': {'inSWMean': 'sw', 'inSWFinalQF': 'sw_qf'},
            'wind': {'windSpeedMean': 'wind', 'windSpeedFinalQF': 'wind_qf'}}
 
-
 def table(site, month, key):
     """The single tower-top basic table of one product-month as downloaded by `neon_files`."""
     product, name = TABLES[key]
     f = sorted((RAW / 'neon' / site / month / product / 'basic').glob(f'*.{name}.*basic*.csv'))
     if len(f) != 1: raise FileNotFoundError(f'{site} {month} {name}: {len(f)} files')
     return pd.read_csv(f[0], parse_dates=['startDateTime']).set_index('startDateTime')
-
 
 def load_site(site, months):
     """1-min UTC series of the label probe (RH, probe T, dew point), the aspirated thermometer, incoming shortwave and
@@ -110,7 +98,6 @@ def load_site(site, months):
         out.append(pd.concat(parts, axis=1))
     return pd.concat(out)
 
-
 def frame_meta(text):
     """Camera state of one PhenoCam frame from its .meta text: burned-in UTC time and camera temperature (overlay),
     exposure and the automatic-processing switches."""
@@ -122,7 +109,6 @@ def frame_meta(text):
                 camera_temp_c=float(temp.group(1)) if temp else np.nan, exposure=float(m.get('exposure', 'nan')), overlay=m.get('overlay'),
                 overlay_pos=f"{m.get('overlay_position')}/{m.get('overlay_x')}/{m.get('overlay_y')}", auto_exposure=m.get('auto_exposure'), agc=m.get('agc'),
                 auto_haze=m.get('auto_haze'), ir_enable=m.get('ir_enable'), wb=f"{m.get('red')}/{m.get('green')}/{m.get('blue')}", resolution=m.get('resolution'))
-
 
 def load_frames(cam, months, utc_offset_h):
     """Listed frames of a camera with filename-derived UTC time, .meta camera state and whether the JPEG is on disk."""

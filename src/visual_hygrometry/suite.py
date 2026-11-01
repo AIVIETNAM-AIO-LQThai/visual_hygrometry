@@ -24,7 +24,6 @@ CANDIDATES = ['L3', 'L4', 'S', 'S4']
 N_NULL = 39
 RFF_SCALES = [2.0, 3.0, 20.0, 10.0, 0.15]  # hour (h), T (K), day of year (d), solar elevation (deg), daylight fraction; K: 0.15
 
-
 def spec(gamma=0.0, slow=(0.0, 0.0), cloud=(0.0, 0.0, 0.0), r_persist=.5, v_persist=.5, r_day=.6, v_day=.4, beta=.4, illum=False):
     """Hourly SEM with constant means; diurnal and seasonal cycles are added by `climate` from solar geometry.
     S: slow shared state (day-level, AR 0.95 across days); K: cloudiness, observed as a clear-sky index if illum."""
@@ -42,11 +41,9 @@ class _const:
     def __init__(self, c): self.c = c
     def __call__(self, h): return np.full_like(np.asarray(h, float), self.c)
 
-
 def sun(df, lag=0.0, lat=LAT, lon=LON, off=OFF):
     """Positive sine of solar elevation `lag` hours earlier (heating lags the sun)."""
     return np.clip(np.sin(np.radians(data.solar(df.doy, df.hour - lag, lat, lon, off).solar_elev_deg.to_numpy())), 0, None)
-
 
 def climate(df, rng, t_amp=9.0, t_lag=2.0, d_amp=6.0, d_lag=2.5, dawn=1.5):
     """Solar-driven diurnal cycles: T and D follow lagged insolation and D has a dawn minimum tied to sunrise. Every term
@@ -55,7 +52,6 @@ def climate(df, rng, t_amp=9.0, t_lag=2.0, d_amp=6.0, d_lag=2.5, dawn=1.5):
     df['temp_cond_c'] = df.temp_cond_c + t_amp * sun(df, t_lag)
     df['d_ref_k'] = df.d_ref_k + d_amp * sun(df, d_lag) - dawn * np.exp(-6 * np.clip(fr, 0, None)) + 0.4 * t_amp * sun(df, t_lag)
     return df
-
 
 def make(W, n_seasons, seed):
     """n_seasons independent seasons of N_DAYS days (June–August), climate and world modification applied, solar
@@ -70,7 +66,6 @@ def make(W, n_seasons, seed):
     df = W.get('climate', climate)(df, rng)
     if 'modify' in W: df = W['modify'](df, rng)
     return pd.concat([df, data.solar(df.doy, df.hour_local, LAT, LON, OFF)], axis=1)
-
 
 def pipeline(df, W, full=True, force=None):
     """The protocol on one simulated record (seasons < N_SEAS analysed; later seasons only score the frozen chronological
@@ -120,7 +115,6 @@ def pipeline(df, W, full=True, force=None):
         out['repair_lb' + tag] = lb(inference.repair_gain(Cx, P, ys, sp, ws, ls_c=ls_c, robust=True))
     return out
 
-
 def one_rep(W, seed):
     df = make(W, N_SEAS + N_FUT, seed)
     out = dict(seed=seed) | pipeline(df, W)
@@ -129,12 +123,10 @@ def one_rep(W, seed):
     b = pipeline(df[~(s & (df.d_ref_k.to_numpy() <= np.quantile(df.d_ref_k[s], .01)))].reset_index(drop=True), W, full=False)
     return out | dict(dest_rand=a['est'] - out['est'], dest_rare=b['est'] - out['est'])
 
-
 def safe_rep(W, seed):
     """A replicate that raises is recorded with its error and counted, never dropped."""
     try: return one_rep(W, seed)
     except Exception as e: return dict(seed=seed, error=f'{type(e).__name__}: {e}')
-
 
 def run(worlds_, start, reps, stride=1000, n_jobs=16):
     """Replicates of every world, each world with its own seed range (start + stride * world index)."""
@@ -143,7 +135,6 @@ def run(worlds_, start, reps, stride=1000, n_jobs=16):
 
 
 q90 = lambda x: np.quantile(np.abs(x), .9)
-
 
 def summarise(worlds_, res, tau_audit=0.0, tau_repair=0.0):
     """Per world: Type I / power of both nulls, estimate vs E2 and vs the design's own G, interval coverage, stability,
@@ -163,14 +154,12 @@ def summarise(worlds_, res, tau_audit=0.0, tau_repair=0.0):
 
 
 # --- world components ---------------------------------------------------------------------------------------------
-
 def sun_clock(amp, sd, lag=0.0):
     """Image = brightness proportional to (lagged) insolation, plus the image noise scaled by sd."""
     def f(df, rng):
         df['vis_moist'] = df.vis_moist * sd + amp * sun(df, lag)
         return df
     return f
-
 
 def encodes(term, scale, v_sd):
     """D += term(df); the image `vis_ctx` = scale * term + noise: a context function the image tracks (a null)."""
@@ -181,14 +170,12 @@ def encodes(term, scale, v_sd):
         return df
     return f
 
-
 def markov(p_stay, n, rng):
     """Two-state Markov chain over n days, stationary probability 0.5."""
     z = np.empty(n, bool)
     z[0] = rng.random() < .5
     for t in range(1, n): z[t] = z[t - 1] if rng.random() < p_stay else ~z[t - 1]
     return z
-
 
 def regimes(p_d, p_v, mu=-2.0, sd=1.5, nu=1.0, shared=False):
     """Day-level weather regimes: D shifted by mu and its residual scaled by sd in regime 1; image shifted by nu in its
@@ -202,7 +189,6 @@ def regimes(p_d, p_v, mu=-2.0, sd=1.5, nu=1.0, shared=False):
         return df
     return f
 
-
 def vegetation(amp=(.5, 2.0), mid=(175, 215), width=8, camera_from=2, gain=1.4, offset=-.8):
     """Season-specific greening (random amplitude and timing per season) and a camera change from season camera_from."""
     def f(df, rng):
@@ -213,15 +199,11 @@ def vegetation(amp=(.5, 2.0), mid=(175, 215), width=8, camera_from=2, gain=1.4, 
         return df
     return f
 
-
 def season_x_hour(d): return 0.8 * np.sin(2 * np.pi * (d.hour - 9) / 24) * np.tanh((d.doy - 200) / 15)
-
 
 def gam(c): return np.sqrt(np.expm1(2 * c)) / 2  # image coefficient giving I = c for moisture residual SD 2, image noise SD 1
 
-
 def cmi(sp, given=('temp_cond_c',)): return synthetic.cmi(sp, 'd_ref_k', 'vis_moist', list(given))
-
 
 def truth_shared_regime(pi, mu_d, sd_d, nu_v, n=2_000_000, seed=0):
     """I(D; V | C) when a latent two-state regime shifts the D residual (mean mu_d, SD sd_d) and the image (mean nu_v,
