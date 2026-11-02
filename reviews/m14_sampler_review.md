@@ -1,5 +1,7 @@
 # Review 8: M1.4 closes NEON Q0. No repaired CRT sampler held level at the required precision, and the misspecified samplers did not inflate either
 
+**Outcome of the review:** closure accepted, with precision corrections recorded in D-086. The real CPER labels did enter notebook 19, to fit the context-only label generators (D given C, never with V); "never read" below should read "no test of the real images against the real labels". P's failure to be certified at the 0.10 tolerance is separate from its over-rejection relative to the nominal 0.05 (129/2000, p = 0.004). The methods lesson holds only for the evaluated worlds.
+
 ## Why this is a review checkpoint
 
 Discussion 8 asked for escalation at the end of the bounded M1.4 experiment. It has ended. Under the rules declared before any code ([plan](../docs/m14_sampler_experiment_plan.md) §4, §8), no candidate is eligible, so the outcome is **closed**: NEON Q0 development ends for this phase, and the real labels were not read (D-085). The M2A design also has open decisions that change cost and site count, and M1.4 adds one more: how the field null will be calibrated.

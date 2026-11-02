@@ -22,7 +22,7 @@ $$\frac{\partial D}{\partial RH} = -\frac{BC}{(B-\gamma)^2\,RH},\qquad \frac{\pa
 
 At 20 °C, `∂D/∂T` is 0.08 at 50 %RH and falls towards 0 at saturation, so RH error dominates everywhere (±2 %RH → σ_D ≈ 0.6 K at 50 %RH, 0.33 K at 98 %RH).
 
-**Censoring rule.** Near saturation `D/σ_D ≈ (100 − RH)RH/(100σ_RH) ≈ (100 − RH)/σ_RH`, independent of temperature (exact crossing within 0.05 %RH of `100 − σ_RH` at 0, 20, 35 °C). Readings with `RH ≥ RH_c = 100 − kσ_RH` (default k = 1) are left-censored: the label is the bound `d_c = D(T, RH_c)` and the likelihood term is `log P(D ≤ d_c)`. The limit comes from the instrument specification only, never from the label distribution.
+**Censoring rule.** Near saturation `D/σ_D ≈ (100 − RH)RH/(100σ_RH) ≈ (100 − RH)/σ_RH`, independent of temperature (exact crossing within 0.05 %RH of `100 − σ_RH` at 0, 20, 35 °C). Readings with `RH ≥ RH_c = 100 − kσ_RH` (default k = 1) are left-censored: the label is the bound `d_c = D(T, RH_c)` and the likelihood term is `log P(D ≤ d_c)`. The limit comes from the instrument specification only, never from the label distribution. *For field data this rule is superseded by D-087:* a censored likelihood applies only at a clip or reporting limit demonstrated on the bench, and readings near saturation are otherwise noisy observations ([m2a_pilot_design.md](m2a_pilot_design.md) §6).
 
 ## 2 · Information targets
 

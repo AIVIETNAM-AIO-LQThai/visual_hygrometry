@@ -1,6 +1,6 @@
 # Field pilot: checklist by purpose (draft 3)
 
-**Status:** draft after review 5. **No equipment is to be ordered yet.** Superseded in structure by [m2a_pilot_design.md](m2a_pilot_design.md) (D-083), which keeps every requirement below. The A-tier camera test "image statistics of a fixed target are constant across illumination" is corrected there (§13): it is the panel-normalised quantity that must be stable.
+**Status:** draft after review 5. **No equipment is to be ordered yet.** Superseded in structure by [m2a_pilot_design.md](m2a_pilot_design.md) (D-083), which keeps every requirement below. The A-tier camera test "image statistics of a fixed target are constant across illumination" is corrected there (§13): it is the panel-normalised quantity that must be stable, judged against an uncertainty budget (draft 2, D-088). The heater margin is risk reduction, not proof of a dry window.
 
 Each requirement traces to a NEON finding (notebooks 07–15) or to the synthetic validations (notebooks 11 and 14). The checklist separates three purposes that need different durations and different hardware:
 - **A — engineering pilot (weeks to a few months):** prove that the camera and measurement chain work and are synchronised. It needs neither several seasons nor any statistical power.
