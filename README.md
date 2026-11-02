@@ -4,7 +4,7 @@ Can a fixed camera observe near-surface moisture, and how much does it see **bey
 
 The project treats this as an identifiability problem, not as image-to-humidity regression. The primary estimand is the conditional mutual information `E2 = I(D; V | hour, season, T)` between images `V` and the dew-point depression `D = T − Td`, estimated by the held-out log-score contrast of matched probabilistic models. Camera-only (CO), temperature-assisted (TA) and contextual (CTX) predictors are separate products with separate input contracts ([docs/research_scope.md](docs/research_scope.md)).
 
-## Current stage: exploratory M1 — projection-free inference redesign (review 4)
+## Current stage: M2A field-pilot design (M1.4 closed NEON Q0)
 
 | piece | where | status |
 |---|---|---|
@@ -29,7 +29,9 @@ The project treats this as an identifiability problem, not as image-to-humidity 
 | fresh validation of the solar protocol | [notebooks/16](notebooks/16_fresh_validation_solar_protocol.ipynb) | **5 of 7 gates pass**: CRT Type I 0.02–0.08 in ten nulls, power ≥ 0.83, unbiased and stable estimates, repair diagnostic valid; season-cluster interval under-covers (0.71–0.91) and the context-only challenger fails ([review](reviews/m1_solar_protocol_review.md)) |
 | CPER 2020–2023 image verification, CRT sampler audit | [notebooks/17](notebooks/17_cper_image_verification_and_sampler_audit.ipynb), [manifest](data/manifests/phenocam_hourly_CPER_2020-2022JJA.csv) | images complete, clocks verified from the burned-in overlay; **sampler not suitable** on real features (within-day persistence, hour-dependent scale, heavy tails); no real-data Q0 ([review](reviews/m1_real_sampler_review.md)) |
 | CPER per-season predictive gains | [notebooks/18](notebooks/18_cper_per_season_predictive_gains.ipynb) | descriptive only: +0.020 / +0.022 / −0.025 / +0.073 nats/row (2020–2023); fragile to refitting, partly shared with auto-exposure |
-| field pilot | [docs/field_pilot_checklist.md](docs/field_pilot_checklist.md) | draft 3: engineering pilot / research collection / reference instrumentation |
+| M1.4 bounded CRT sampler experiment | [plan](docs/m14_sampler_experiment_plan.md), [notebooks/19](notebooks/19_m14_sampler_synthetic_validation.ipynb), [notebooks/20](notebooks/20_m14_cper_sampler_reaudit.ipynb), `samplers.py` | **closed** (D-085): no candidate held level within the 0.10 tolerance at the required precision (P pooled 0.065, R 0.079); no misspecified sampler showed demonstrated inflation, so the audit is unvalidated; real labels not read; NEON Q0 development ends for this phase |
+| NEON or a controlled station | [docs/neon_vs_field_decision.md](docs/neon_vs_field_decision.md) | effort moves to the field station; NEON stays a methods dataset (D-084) |
+| field pilot (M2A, primary) | [docs/m2a_pilot_design.md](docs/m2a_pilot_design.md), [checklist](docs/field_pilot_checklist.md) | design draft 1: shared acquisition core + P1 (extinction) and P2 (dew) modules, three tiers, calibration and QC; nothing ordered |
 | maths | [docs/mathematical_formulation.md](docs/mathematical_formulation.md) | |
 
 Nothing here is evidence that RGB imagery carries moisture information. The estimator was validated on synthetic data with known truth only, and the first real-image comparison (notebook 10) supports no claim.
@@ -54,10 +56,10 @@ cd notebooks && PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace 00_t
 ```
 
 ```bash
-cd notebooks && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace --timeout=-1 14_solar_context_and_dependence_aware_inference.ipynb 16_fresh_validation_solar_protocol.ipynb 17_cper_image_verification_and_sampler_audit.ipynb 18_cper_per_season_predictive_gains.ipynb
+cd notebooks && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUTF8=1 ../.venv/Scripts/jupyter-execute.exe --inplace --timeout=-1 14_solar_context_and_dependence_aware_inference.ipynb 16_fresh_validation_solar_protocol.ipynb 17_cper_image_verification_and_sampler_audit.ipynb 18_cper_per_season_predictive_gains.ipynb 19_m14_sampler_synthetic_validation.ipynb 20_m14_cper_sampler_reaudit.ipynb
 ```
 
-`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 14 takes about 3 hours and notebook 16 about 9 hours on 16 workers (single-threaded BLAS per worker is about 7× faster than the default); notebook 15 downloads the CPER 2020–2023 tower tables and 3,792 `.meta` files; notebook 17 needs the 3,792 hourly CPER JPEGs of 2020–2022 (1.42 GB, checked against their manifest) and takes about 1 hour, notebook 18 about 6 minutes; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
+`PYTHONUTF8=1` matters on Windows: `jupyter execute` otherwise opens notebooks with the locale code page. Notebook 01 takes about 4 minutes, notebook 03 about 5, notebooks 04 and 05 about 20 minutes each and notebook 06 about 75 minutes on 16 parallel workers; notebook 07 downloads ~80 MB on first run; notebooks 08–09 need the NEON tables for HARV and CPER June–August 2023 and the 2574 hourly PhenoCam frames (1.22 GB) in `data/raw/`; notebooks 09 and 10 together take roughly 15 minutes, notebook 11 about 2.5 hours on 16 workers, notebook 12 about 20 minutes; notebook 13 downloads ~230 MB of tower data and 139 midday frames on first run; notebook 14 takes about 3 hours and notebook 16 about 9 hours on 16 workers (single-threaded BLAS per worker is about 7× faster than the default); notebook 15 downloads the CPER 2020–2023 tower tables and 3,792 `.meta` files; notebook 17 needs the 3,792 hourly CPER JPEGs of 2020–2022 (1.42 GB, checked against their manifest) and takes about 1 hour, notebook 18 about 6 minutes; notebook 19 about 9 hours on 18 workers (cached per section in `data/interim/m14/`), and notebook 20, which reads notebook 19's summary, seconds when the outcome is closed; notebook 02 queries the NEON and PhenoCam APIs live. A NEON API token, if needed, is read from `NEON_TOKEN` in `.env`.
 
 ## Layout
 
@@ -66,7 +68,7 @@ configs/   inference settings (roles each setting may consume)
 docs/      scope, policy, mathematics, decision log
 schemas/   JSON-schema data contracts with x-role / x-derived-from annotations
 src/visual_hygrometry/
-           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py  neon.py  features.py  suite.py
+           thermo.py  data.py  policy.py  splits.py  scoring.py  inference.py  synthetic.py  worlds.py  neon.py  features.py  suite.py  samplers.py
 notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 02 public-data audit,
            03 revised inference / predictive families / censoring with a held-out validation suite,
            04 context capacity (flexible context basis, visual projection, adequacy diagnostics),
@@ -77,7 +79,8 @@ notebooks/ 00 thermodynamics + synthetic world, 01 first estimator validation, 0
            11 projection-free inference with a new synthetic validation suite, 12 diagnostics of the notebook 10 failure,
            13 multi-year NEON availability audit, 14 solar context and dependence-aware inference (development),
            15 CPER 2020–2023 acquisition audit, 16 fresh validation of the solar-context protocol,
-           17 CPER image verification and real-image CRT sampler audit, 18 CPER per-season predictive gains
+           17 CPER image verification and real-image CRT sampler audit, 18 CPER per-season predictive gains,
+           19 M1.4 synthetic validation of the repaired CRT samplers, 20 M1.4 re-audit on the CPER features
 tests/     pytest suite (thermodynamics, policy canaries, splits/purging, scores, estimator bias)
 data/      local data area; raw files are ignored by Git (data/README.md)
 ```

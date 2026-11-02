@@ -71,7 +71,8 @@ def pipeline(df, W, full=True, force=None):
     """The protocol on one record (seasons < N_SEAS analysed; later seasons only score the frozen chronological
     models). force: a context level used instead of the capacity search (diagnostics). Real records (notebooks 17-18)
     set W['shared_sensor'] when label and context share a sensor, and may set W['n_perm'] (CRT draws), W['level'] (an SCI
-    level, e.g. the acquisition-only control) and W['null_tests'] = False (auditors without the Q0 tests)."""
+    level, e.g. the acquisition-only control), W['null_tests'] = False (auditors without the Q0 tests) and W['sampler'] (the
+    CRT sampler factory, default `inference.conditional_sampler`; e.g. `samplers.factory('P')`)."""
     s, extra = (df.year < N_SEAS).to_numpy(), []
     if W.get('illum'):
         I = data.spline(df.clearsky_k, ILL_K, 'illum_spl')
@@ -109,7 +110,7 @@ def pipeline(df, W, full=True, force=None):
     test = lambda n_perm=N_NULL, **kw: inference.perm_test(D, V[s], ys, sp, ws, hour, keep=keep, units=gs, strata=ss, Cnull=Cnull, clip=.005, robust=True, n_perm=n_perm, **kw)[1]
     if W.get('null_tests', True):
         out |= dict(p_shift=test(shift_min=7, max_shifts=N_NULL),
-                    p_crt=test(W.get('n_perm', N_NULL), seed=1, sampler=inference.conditional_sampler(V[s], np.c_[raw[s], ss], gs, hour, strata=ss, groups=ws)))
+                    p_crt=test(W.get('n_perm', N_NULL), seed=1, sampler=W.get('sampler', inference.conditional_sampler)(V[s], np.c_[raw[s], ss], gs, hour, strata=ss, groups=ws)))
     ok = keep & np.isfinite(r.pred_c[2])
     lb = lambda d: inference.cluster_lower(d[ok], ws[ok])
     R = inference.rff(raw[s], RFF_SCALES + [0.15] * (raw.shape[1] - 5))
